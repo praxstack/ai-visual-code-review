@@ -57,7 +57,7 @@ const createRateLimit = (maxRequests, windowMs) => {
     const validRequests = requests.filter(time => now - time < windowMs);
 
     if (validRequests.length >= maxRequests) {
-      console.warn(`🚫 Rate limit exceeded for ${ip}: ${validRequests.length}/${maxRequests} requests in ${windowMs/1000}s`);
+      console.warn(`🚫 Rate limit exceeded for ${ip}: ${validRequests.length}/${maxRequests} requests in ${windowMs / 1000}s`);
       return res.status(429).json({
         error: 'Too many requests',
         retryAfter: Math.ceil(windowMs / 1000),
@@ -113,10 +113,28 @@ const requestLogger = (req, res, next) => {
   next();
 };
 
-// Middleware
+// Middleware - Enterprise-grade CORS configuration
+const ALLOWED_ORIGINS = [
+  'http://localhost:3002',
+  'http://127.0.0.1:3002',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? false : true,
-  credentials: false
+  origin: process.env.NODE_ENV === 'production'
+    ? false
+    : (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('CORS policy violation'), false);
+    },
+  credentials: false,
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
 }));
 app.use(express.json({
   limit: CONFIG.server.maxRequestSize,
@@ -198,9 +216,19 @@ function validateFileRequest(file) {
     return { valid: false, error: 'File parameter is required and must be a string' };
   }
 
+  // HI-004: Path length validation (max 500 characters)
+  if (file.length > 500) {
+    return { valid: false, error: 'File path too long (max 500 characters)' };
+  }
+
   // Enhanced security validation
   if (!DiffService.isValidFilePath(file)) {
     return { valid: false, error: 'Invalid file path - potential security risk' };
+  }
+
+  // CR-005: Strict path traversal prevention - reject ANY ".." sequence
+  if (file.includes('..')) {
+    return { valid: false, error: 'Path traversal not allowed' };
   }
 
   // Additional checks for suspicious patterns
@@ -208,11 +236,18 @@ function validateFileRequest(file) {
     /\x00/,           // Null bytes
     /[<>"|*?]/,       // Dangerous file characters
     /^\//,            // Absolute paths
-    /\.\.[\\/]/       // Path traversal
+    /^[a-zA-Z]:\\/,   // Windows absolute paths
+    /[\r\n]/,         // Newline injection
   ];
 
   if (suspiciousPatterns.some(pattern => pattern.test(file))) {
     return { valid: false, error: 'File path contains invalid characters' };
+  }
+
+  // Verify the resolved path stays within working directory
+  const resolvedPath = path.resolve(process.cwd(), file);
+  if (!resolvedPath.startsWith(process.cwd())) {
+    return { valid: false, error: 'File path escapes working directory' };
   }
 
   return { valid: true };
@@ -469,7 +504,7 @@ function cacheMiddleware(ttlSeconds = 30) {
 
     // Override res.json to cache the response
     const originalJson = res.json;
-    res.json = function(data) {
+    res.json = function (data) {
       if (res.statusCode === 200) {
         requestCache.set(key, {
           data,

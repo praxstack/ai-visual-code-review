@@ -1,54 +1,46 @@
-📝 docs(audit): add comprehensive code audit findings (Iteration 1)
+🔒 security(server): fix critical security vulnerabilities (Sprint 1)
 
 ## Problem
-The codebase lacked formal documentation of technical debt, security vulnerabilities,
-and code quality issues that need to be addressed for production readiness.
+Multiple security vulnerabilities and bugs were identified in the code audit:
+- CR-002: execSync bug in CLI using invalid `.catch()` on synchronous function
+- CR-005: Path traversal bypass via `./..` pattern
+- HI-004: No file path length validation (DoS risk)
+- HI-005: CORS too permissive in development mode
 
 ## Solution
-Conducted a comprehensive 9-phase code audit following the Star Team methodology:
 
-### Audit Deliverables Created:
-- `star-team-audit/audit-iteration-1/phase-1-discovery/01-repository-manifest.md`
-  - Complete file inventory (46 files, 5,811 LOC)
+### CLI Fix (bin/ai-review.js)
+- Replaced invalid `execSync().catch()` with proper `try-catch` block
+- Browser auto-open feature now works correctly with proper error handling
 
-- `star-team-audit/audit-iteration-1/phase-2-documentation/02-documentation-analysis.md`
-  - Documentation gaps analysis (18 gaps identified)
-
-- `star-team-audit/audit-iteration-1/phase-3-architecture/03-architecture-review.md`
-  - Architecture score: 7.2/10
-  - 13 architectural issues documented
-
-- `star-team-audit/audit-iteration-1/phase-4-code-review/04-code-review-findings.md`
-  - 87 code issues (5 Critical, 18 High, 34 Medium, 30 Low)
-
-- `star-team-audit/audit-iteration-1/phase-5-9-consolidated/05-09-consolidated-audit-report.md`
-  - Full consolidated report with implementation roadmap
-  - Sprint planning for fixes
-
-## Key Findings
-
-### Critical Issues (Require Immediate Attention):
-1. **CR-001**: VSCode Extension imports non-existent files
-2. **CR-002**: execSync bug in CLI (invalid .catch() on sync function)
-3. **CR-003**: No HTTPS/TLS support for production
-4. **CR-004**: Race condition in rate limit store
-5. **CR-005**: Path traversal bypass via `./..` pattern
-
-### Statistics:
-- Total Issues: 138
-- Critical: 9
-- High: 30
-- Medium: 55
-- Low: 44
-- Estimated Fix Effort: 45-55 person-days
+### Security Hardening (server.js)
+- **Enterprise-grade CORS**: Restricted to specific localhost origins instead of wildcard
+- **Path traversal prevention**: Strict rejection of ANY `..` sequence in file paths
+- **Path length validation**: Max 500 characters to prevent DoS
+- **Windows path check**: Block absolute Windows paths (`C:\`)
+- **Newline injection**: Block `\r\n` characters in paths
+- **Path resolution check**: Verify resolved paths stay within working directory
 
 ## Impact
-- Provides clear roadmap for codebase improvements
-- Documents all security vulnerabilities for remediation
-- Establishes baseline for tracking technical debt reduction
-- Enables prioritized sprint planning for fixes
+- Closes CR-002: CLI browser auto-open now works
+- Closes CR-005: Path traversal attacks blocked
+- Closes HI-004: Path length DoS prevented
+- Closes HI-005: CORS properly restricted
 
-## Next Steps
-1. Fix critical issues (Sprint 1: ~3.25 person-days)
-2. Address VSCode extension and security (Sprint 2-3: ~7 person-days)
-3. Refactor monolithic files (Sprint 4-6: ~15 person-days)
+## Security Improvements
+```
+Before: CORS origin = true (all origins)
+After:  CORS origin = whitelist only (localhost:3000, localhost:3002)
+
+Before: Path `./../../etc/passwd` would pass validation
+After:  ANY path with `..` is rejected
+
+Before: No path length limit
+After:  Max 500 characters enforced
+```
+
+## Testing
+All 3 test suites pass:
+- test/server.test.js ✅
+- test/diffService.test.js ✅
+- test/spaces-in-paths.test.js ✅

@@ -67,10 +67,13 @@ function startServer(port = PORT, openBrowser = false) {
       const url = `http://localhost:${port}`;
       console.log(`\n🌐 Opening browser: ${url}`);
 
-      const start = (process.platform == 'darwin'? 'open': process.platform == 'win32'? 'start': 'xdg-open');
-      execSync(`${start} ${url}`, { stdio: 'ignore' }).catch(() => {
+      const start = (process.platform == 'darwin' ? 'open' : process.platform == 'win32' ? 'start' : 'xdg-open');
+      try {
+        execSync(`${start} ${url}`, { stdio: 'ignore' });
+      } catch (error) {
         console.log('💡 Could not open browser automatically');
-      });
+        console.log('   Please open manually:', url);
+      }
     }, 2000);
   }
 
