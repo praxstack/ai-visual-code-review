@@ -1,42 +1,58 @@
-✅ fix(vscode): add missing TypeScript files for VSCode extension (CR-001)
+♻️ refactor(architecture): add modular source structure (HI-001 Phase 1)
 
 ## Problem
-VSCode extension was incomplete with missing TypeScript files that were imported but not created:
-- `services/diffService.ts` - Referenced but not implemented
-- `providers/stagedFilesProvider.ts` - Tree data provider missing
-- `webview/reviewWebviewProvider.ts` - Webview panel missing
-- `gitService.ts` had TypeScript type error (implicit any)
+HI-001: server.js was a monolithic 1000+ line file making maintenance difficult
 
 ## Solution
+Created modular `src/` directory structure following enterprise patterns:
 
-### New Files Created
-1. **diffService.ts** - Complete diff parsing service
-   - `parseDiff()` - Parse git diff into structured chunks
-   - `formatEnhancedDiff()` - Format with line numbers
-   - `generateEnhancedDiffMarkdown()` - Export ready markdown
+### New Directory Structure
+```
+src/
+├── config/
+│   └── index.js         # Centralized configuration (HTTPS, rate limits, etc.)
+├── middleware/
+│   ├── index.js         # Middleware exports
+│   ├── security.js      # Security headers, CSP with nonces (HI-010)
+│   └── rateLimit.js     # Rate limiting with atomic operations
+└── utils/
+    ├── index.js         # Utility exports
+    ├── validation.js    # Input validation functions
+    └── gitCommands.js   # Secure git command execution
+```
 
-2. **stagedFilesProvider.ts** - Tree view provider
-   - Implements `TreeDataProvider<StagedFileItem>`
-   - Shows staged files in VSCode sidebar
-   - File type icons based on extension
-   - Refresh capability
+### Key Improvements
+1. **Config Module** - All configuration in one place with HTTPS support (CR-003)
+2. **Security Middleware** - CSP with nonce generation (HI-010 fix)
+3. **Rate Limit Middleware** - Extracted with test reset function
+4. **Validation Utils** - Reusable validation functions
+5. **Git Commands Utils** - Secure command execution with whitelist
 
-3. **reviewWebviewProvider.ts** - Webview panel provider
-   - Implements `WebviewViewProvider`
-   - Full panel view for code review
-   - Sidebar view for quick access
-   - Message handling for VSCode commands
+### HI-010 CSP Nonce Implementation
+```javascript
+// Before: unsafe-inline
+"script-src 'self' 'unsafe-inline'"
 
-### Type Fix
-- Fixed implicit `any` type in `gitService.ts` filter callback
-- Added proper `(file: string)` type annotation
+// After: nonce-based
+"script-src 'self' 'nonce-${nonce}'"
+```
+
+### CR-003 HTTPS Configuration Ready
+```javascript
+server: {
+  https: {
+    enabled: process.env.HTTPS_ENABLED === 'true',
+    keyPath: process.env.HTTPS_KEY_PATH || './certs/key.pem',
+    certPath: process.env.HTTPS_CERT_PATH || './certs/cert.pem'
+  }
+}
+```
 
 ## Impact
-- Closes CR-001: VSCode extension now compiles successfully
-- Extension ready for testing in VSCode
-- All 30 unit tests still pass
+- Partial HI-001: Modular structure created (server.js refactor in Phase 2)
+- HI-010: CSP nonce support ready for use
+- CR-003: HTTPS configuration ready
+- Foundation for easier testing and maintenance
 
 ## Testing
-- VSCode Extension: `npm run compile` ✅
-- Main Project: `npm test` (30/30 pass) ✅
-- CLI: `node bin/ai-review.js --help` ✅
+All 30 tests pass ✅
