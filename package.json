@@ -1,6 +1,6 @@
 {
   "name": "ai-visual-code-review",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "description": "Visual code review tool with AI integration for any Git repository",
   "main": "server.js",
   "bin": {
@@ -57,19 +57,6 @@
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
     "supertest": "^6.3.3"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "testMatch": [
-      "**/test/**/*.test.js"
-    ],
-    "collectCoverageFrom": [
-      "**/*.js",
-      "!**/node_modules/**",
-      "!**/test/**",
-      "!**/vscode-extension/**",
-      "!**/coverage/**"
-    ]
   },
   "files": [
     "bin/",
