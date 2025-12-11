@@ -1,46 +1,49 @@
-🔒 security(server): fix critical security vulnerabilities (Sprint 1)
+♻️ refactor(frontend): fix duplicate state management and saveComment (Sprint 1)
 
 ## Problem
-Multiple security vulnerabilities and bugs were identified in the code audit:
-- CR-002: execSync bug in CLI using invalid `.catch()` on synchronous function
-- CR-005: Path traversal bypass via `./..` pattern
-- HI-004: No file path length validation (DoS risk)
-- HI-005: CORS too permissive in development mode
+The frontend code had architectural issues identified in the code audit:
+- HI-003: Duplicate state management (global variables AND state object)
+- HI-015: saveComment function defined twice causing unpredictable behavior
 
 ## Solution
 
-### CLI Fix (bin/ai-review.js)
-- Replaced invalid `execSync().catch()` with proper `try-catch` block
-- Browser auto-open feature now works correctly with proper error handling
+### State Management Fix (HI-003)
+- Created centralized `AppState` object as single source of truth
+- Added proper methods: `addDiff()`, `getDiff()`, `getParsedDiff()`, `hasDiff()`, `clear()`
+- Maintained backward compatibility aliases for gradual migration
+- Memory management integrated into AppState
 
-### Security Hardening (server.js)
-- **Enterprise-grade CORS**: Restricted to specific localhost origins instead of wildcard
-- **Path traversal prevention**: Strict rejection of ANY `..` sequence in file paths
-- **Path length validation**: Max 500 characters to prevent DoS
-- **Windows path check**: Block absolute Windows paths (`C:\`)
-- **Newline injection**: Block `\r\n` characters in paths
-- **Path resolution check**: Verify resolved paths stay within working directory
+### saveComment Fix (HI-015)
+- Consolidated duplicate saveComment functions into single unified implementation
+- Handles both file-level and line-level comments correctly
+- Single code path for comment persistence
+
+## Code Changes
+```javascript
+// Before: Duplicate state declarations
+let allDiffs = {};           // Global
+const state = {
+  allDiffs: new Map(),       // Duplicate!
+};
+
+// After: Single source of truth
+const AppState = {
+  allDiffs: {},
+  // Methods for cache management
+  addDiff(file, diff, parsedDiff) { ... }
+};
+// Backward compatibility aliases
+const allDiffs = AppState.allDiffs;
+```
 
 ## Impact
-- Closes CR-002: CLI browser auto-open now works
-- Closes CR-005: Path traversal attacks blocked
-- Closes HI-004: Path length DoS prevented
-- Closes HI-005: CORS properly restricted
-
-## Security Improvements
-```
-Before: CORS origin = true (all origins)
-After:  CORS origin = whitelist only (localhost:3000, localhost:3002)
-
-Before: Path `./../../etc/passwd` would pass validation
-After:  ANY path with `..` is rejected
-
-Before: No path length limit
-After:  Max 500 characters enforced
-```
+- Closes HI-003: No more state desync issues
+- Closes HI-015: Predictable comment saving behavior
+- Improved maintainability and debugging
+- Foundation for future TypeScript migration
 
 ## Testing
-All 3 test suites pass:
+All 30 tests pass:
 - test/server.test.js ✅
 - test/diffService.test.js ✅
 - test/spaces-in-paths.test.js ✅

@@ -689,12 +689,77 @@
     </div>
 
     <script>
-        // Global state variables (missing declarations causing export button issues)
-        let allDiffs = {};
-        let allParsedDiffs = {};
-        let fileComments = {};
-        let lineComments = {};
-        let selectedFiles = new Set();
+        // ============================================================
+        // ENTERPRISE-GRADE STATE MANAGEMENT (HI-003 FIX)
+        // Single source of truth - no duplicate variables
+        // ============================================================
+
+        // Application state - all data in one centralized object
+        const AppState = {
+            // Diff cache
+            allDiffs: {},
+            allParsedDiffs: {},
+
+            // Comments storage
+            fileComments: {},
+            lineComments: {},
+
+            // Selection state
+            selectedFiles: new Set(),
+
+            // Modal state
+            currentCommentFile: '',
+            currentCommentFileId: '',
+            currentLineId: '',
+            currentLineNumber: 0,
+
+            // Configuration
+            maxCacheSize: 50,
+
+            // Methods for cache management
+            addDiff(file, diff, parsedDiff) {
+                this.allDiffs[file] = diff;
+                this.allParsedDiffs[file] = parsedDiff;
+
+                // Limit cache size to prevent memory issues
+                const keys = Object.keys(this.allDiffs);
+                if (keys.length > this.maxCacheSize) {
+                    const keysToRemove = keys.slice(0, keys.length - this.maxCacheSize);
+                    keysToRemove.forEach(key => {
+                        delete this.allDiffs[key];
+                        delete this.allParsedDiffs[key];
+                    });
+                    console.log(`🗑️ Cleaned ${keysToRemove.length} cached diffs`);
+                }
+            },
+
+            getDiff(file) {
+                return this.allDiffs[file];
+            },
+
+            getParsedDiff(file) {
+                return this.allParsedDiffs[file];
+            },
+
+            hasDiff(file) {
+                return file in this.allDiffs;
+            },
+
+            clear() {
+                this.allDiffs = {};
+                this.allParsedDiffs = {};
+                this.fileComments = {};
+                this.lineComments = {};
+                this.selectedFiles.clear();
+            }
+        };
+
+        // Backward compatibility aliases (gradually deprecate these)
+        const allDiffs = AppState.allDiffs;
+        const allParsedDiffs = AppState.allParsedDiffs;
+        const fileComments = AppState.fileComments;
+        const lineComments = AppState.lineComments;
+        const selectedFiles = AppState.selectedFiles;
         let currentCommentFile = '';
         let currentCommentFileId = '';
         let currentLineId = '';
@@ -718,12 +783,12 @@
                 console.log('🧹 Running memory cleanup...');
 
                 // Clean diff cache if too large
-                if (Object.keys(allDiffs).length > this.maxCacheSize) {
-                    const keys = Object.keys(allDiffs);
+                const keys = Object.keys(AppState.allDiffs);
+                if (keys.length > this.maxCacheSize) {
                     const keysToRemove = keys.slice(0, keys.length - this.maxCacheSize);
                     keysToRemove.forEach(key => {
-                        delete allDiffs[key];
-                        delete allParsedDiffs[key];
+                        delete AppState.allDiffs[key];
+                        delete AppState.allParsedDiffs[key];
                     });
                     console.log(`🗑️ Cleaned ${keysToRemove.length} cached diffs`);
                 }
@@ -743,39 +808,6 @@
                 });
             }
         }
-
-        // Enhanced state management with memory limits
-        const state = {
-            allDiffs: new Map(),
-            allParsedDiffs: new Map(),
-            fileComments: new Map(),
-            lineComments: new Map(),
-            selectedFiles: new Set(),
-            currentCommentFile: '',
-            currentCommentFileId: '',
-            currentLineId: '',
-            currentLineNumber: 0,
-            loadingStates: new Map(),
-
-            // Memory management methods
-            addDiff(file, diff, parsedDiff) {
-                this.allDiffs.set(file, diff);
-                this.allParsedDiffs.set(file, parsedDiff);
-
-                // Limit cache size
-                if (this.allDiffs.size > 50) {
-                    const firstKey = this.allDiffs.keys().next().value;
-                    this.allDiffs.delete(firstKey);
-                    this.allParsedDiffs.delete(firstKey);
-                }
-            },
-
-            clear() {
-                this.allDiffs.clear();
-                this.allParsedDiffs.clear();
-                this.loadingStates.clear();
-            }
-        };
 
         // Initialize memory manager
         const memoryManager = new MemoryManager();
