@@ -2,31 +2,70 @@
 
 const { execSync, spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const PORT = process.env.PORT || 3002;
 
+// Get version from package.json
+function getVersion() {
+  try {
+    const packagePath = path.join(__dirname, '..', 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+    return packageJson.version;
+  } catch (error) {
+    return 'unknown';
+  }
+}
+
+const VERSION = getVersion();
+
+function showVersion() {
+  console.log(`ai-visual-code-review v${VERSION}`);
+}
+
 function showHelp() {
   console.log(`
-🔍 AI Visual Code Review CLI
+🔍 AI Visual Code Review v${VERSION}
+
+Visual code review tool with AI integration for any Git repository.
 
 Usage: ai-review [command] [options]
 
 Commands:
   start, serve, s     Start the visual review server (default)
-  quick, q           Generate quick AI review markdown
-  help, h            Show this help message
+  quick, q            Generate AI_REVIEW.md from staged changes
+  help, h             Show this help message
 
-Options:
-  --port, -p         Port number (default: 3002)
-  --open, -o         Open browser automatically
+Global Options:
+  --version, -v       Show version number
+  --help, -h          Show this help message
+
+Start Options:
+  --port, -p <port>   Server port (default: 3002)
+  --open, -o          Open browser automatically after starting
+
+Quick Options:
+  --include <pattern> Include only files matching pattern
+  --exclude <pattern> Exclude files matching pattern
 
 Examples:
-  ai-review                    # Start visual server
-  ai-review start --port 3003  # Start on custom port
-  ai-review quick              # Quick markdown generation
-  ai-review --help             # Show help
+  ai-review                       Start visual review server on port 3002
+  ai-review start                 Same as above
+  ai-review start -p 3003         Start server on port 3003
+  ai-review start -o              Start and open browser
+  ai-review quick                 Generate AI_REVIEW.md from staged files
+  ai-review quick --exclude "*.md" Exclude markdown files from review
+  ai-review -v                    Show version
+  ai-review --help                Show this help
+
+Workflow:
+  1. Stage your changes: git add .
+  2. Start the server:   ai-review start
+  3. Open browser:       http://localhost:3002
+  4. Review and export for ChatGPT/Claude
 
 Repository: https://github.com/PrakharMNNIT/ai-visual-code-review
+npm:        https://www.npmjs.com/package/ai-visual-code-review
   `);
 }
 
@@ -123,8 +162,20 @@ let command = args.length === 0 ? 'start' : args[0]; // Default to 'start' if no
 let port = PORT;
 let openBrowser = false;
 
+// Handle --version/-v first (highest priority)
+if (args.includes('--version') || args.includes('-v') || args.includes('-V')) {
+  showVersion();
+  process.exit(0);
+}
+
+// Handle --help/-h (second priority)
+if (args.includes('--help') || args.includes('-h') || args.includes('help') || args.includes('h')) {
+  showHelp();
+  process.exit(0);
+}
+
 // If first arg is not a known command, treat as 'start'
-if (args.length > 0 && !['start', 'serve', 's', 'quick', 'q', 'help', 'h', '--help', '-h'].includes(args[0])) {
+if (args.length > 0 && !['start', 'serve', 's', 'quick', 'q', 'version', 'v'].includes(args[0])) {
   command = 'start';
 }
 
@@ -132,16 +183,16 @@ if (args.length > 0 && !['start', 'serve', 's', 'quick', 'q', 'help', 'h', '--he
 let commandIndex = 0;
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
-  if (['start', 'serve', 's', 'quick', 'q', 'help', 'h', '--help', '-h'].includes(arg)) {
+  if (['start', 'serve', 's', 'quick', 'q', 'version', 'v'].includes(arg)) {
     command = arg;
     commandIndex = i;
     break;
   }
 }
 
-// Parse arguments based on command
-if (['help', 'h', '--help', '-h'].includes(command)) {
-  showHelp();
+// Handle version command (without dashes)
+if (['version', 'v'].includes(command)) {
+  showVersion();
   process.exit(0);
 }
 
