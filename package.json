@@ -1,6 +1,6 @@
 {
   "name": "ai-visual-code-review",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "A comprehensive visual code review system with AI integration for any Git repository",
   "main": "server.js",
   "bin": {
