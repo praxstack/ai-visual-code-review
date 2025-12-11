@@ -1,49 +1,42 @@
-♻️ refactor(frontend): fix duplicate state management and saveComment (Sprint 1)
+✅ fix(vscode): add missing TypeScript files for VSCode extension (CR-001)
 
 ## Problem
-The frontend code had architectural issues identified in the code audit:
-- HI-003: Duplicate state management (global variables AND state object)
-- HI-015: saveComment function defined twice causing unpredictable behavior
+VSCode extension was incomplete with missing TypeScript files that were imported but not created:
+- `services/diffService.ts` - Referenced but not implemented
+- `providers/stagedFilesProvider.ts` - Tree data provider missing
+- `webview/reviewWebviewProvider.ts` - Webview panel missing
+- `gitService.ts` had TypeScript type error (implicit any)
 
 ## Solution
 
-### State Management Fix (HI-003)
-- Created centralized `AppState` object as single source of truth
-- Added proper methods: `addDiff()`, `getDiff()`, `getParsedDiff()`, `hasDiff()`, `clear()`
-- Maintained backward compatibility aliases for gradual migration
-- Memory management integrated into AppState
+### New Files Created
+1. **diffService.ts** - Complete diff parsing service
+   - `parseDiff()` - Parse git diff into structured chunks
+   - `formatEnhancedDiff()` - Format with line numbers
+   - `generateEnhancedDiffMarkdown()` - Export ready markdown
 
-### saveComment Fix (HI-015)
-- Consolidated duplicate saveComment functions into single unified implementation
-- Handles both file-level and line-level comments correctly
-- Single code path for comment persistence
+2. **stagedFilesProvider.ts** - Tree view provider
+   - Implements `TreeDataProvider<StagedFileItem>`
+   - Shows staged files in VSCode sidebar
+   - File type icons based on extension
+   - Refresh capability
 
-## Code Changes
-```javascript
-// Before: Duplicate state declarations
-let allDiffs = {};           // Global
-const state = {
-  allDiffs: new Map(),       // Duplicate!
-};
+3. **reviewWebviewProvider.ts** - Webview panel provider
+   - Implements `WebviewViewProvider`
+   - Full panel view for code review
+   - Sidebar view for quick access
+   - Message handling for VSCode commands
 
-// After: Single source of truth
-const AppState = {
-  allDiffs: {},
-  // Methods for cache management
-  addDiff(file, diff, parsedDiff) { ... }
-};
-// Backward compatibility aliases
-const allDiffs = AppState.allDiffs;
-```
+### Type Fix
+- Fixed implicit `any` type in `gitService.ts` filter callback
+- Added proper `(file: string)` type annotation
 
 ## Impact
-- Closes HI-003: No more state desync issues
-- Closes HI-015: Predictable comment saving behavior
-- Improved maintainability and debugging
-- Foundation for future TypeScript migration
+- Closes CR-001: VSCode extension now compiles successfully
+- Extension ready for testing in VSCode
+- All 30 unit tests still pass
 
 ## Testing
-All 30 tests pass:
-- test/server.test.js ✅
-- test/diffService.test.js ✅
-- test/spaces-in-paths.test.js ✅
+- VSCode Extension: `npm run compile` ✅
+- Main Project: `npm test` (30/30 pass) ✅
+- CLI: `node bin/ai-review.js --help` ✅
