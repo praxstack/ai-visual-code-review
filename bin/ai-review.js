@@ -45,8 +45,10 @@ Start Options:
   --open, -o          Open browser automatically after starting
 
 Quick Options:
-  --include <pattern> Include only files matching pattern
-  --exclude <pattern> Exclude files matching pattern
+  --include <pattern> Include only files matching pattern (glob/wildcard)
+  --exclude <pattern> Exclude files matching pattern (glob/wildcard)
+  --split             Generate individual review files per source file
+  --output-dir <dir>  Directory for split reviews (default: timestamped)
 
 Examples:
   ai-review                       Start visual review server on port 3002
@@ -54,7 +56,9 @@ Examples:
   ai-review start -p 3003         Start server on port 3003
   ai-review start -o              Start and open browser
   ai-review quick                 Generate AI_REVIEW.md from staged files
-  ai-review quick --exclude "*.md" Exclude markdown files from review
+  ai-review quick --split         Generate individual reviews in code-reviews-YYYY...
+  ai-review quick --split --output-dir my-reviews
+  ai-review quick --exclude "*.md" "dist/*"  Exclude markdown and dist files
   ai-review -v                    Show version
   ai-review --help                Show this help
 

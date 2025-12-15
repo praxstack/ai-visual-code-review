@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 const express = require('express');
-const { exec, execFile } = require('child_process');
+const { execFile } = require('child_process');
 const { writeFileSync, readFileSync, existsSync, mkdirSync } = require('fs');
 const path = require('path');
 const cors = require('cors');
 const DiffService = require('./services/diffService');
 const GitStatusParser = require('./services/gitStatusParser');
+const ReviewGenerator = require('./services/ReviewGenerator');
+const GitService = require('./services/GitService');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -162,54 +164,6 @@ app.use((req, res, next) => {
 // Rate limiting middleware
 app.use(createRateLimit(CONFIG.rateLimit.max, CONFIG.rateLimit.windowMs));
 
-// Secure Git command execution
-const ALLOWED_GIT_COMMANDS = {
-  'diff-cached': ['git', 'diff', '--cached'],
-  'diff-cached-names': ['git', 'diff', '--cached', '--name-only'],
-  'diff-cached-stat': ['git', 'diff', '--cached', '--stat'],
-  'status-porcelain': ['git', 'status', '--porcelain']
-};
-
-async function executeGitCommand(commandType, args = []) {
-  return new Promise((resolve, reject) => {
-    const baseCommand = ALLOWED_GIT_COMMANDS[commandType];
-    if (!baseCommand) {
-      return reject(new Error(`Invalid git command type: ${commandType}`));
-    }
-
-    // Sanitize and validate arguments
-    const sanitizedArgs = args.filter(arg => {
-      if (typeof arg !== 'string') return false;
-      // Prevent command injection patterns
-      if (/[;&|`$(){}[\]\\]/.test(arg)) return false;
-      // Prevent path traversal (allow relative paths within repo)
-      if (arg.includes('..') && !arg.startsWith('./')) return false;
-      return true;
-    });
-
-    // Use execFile for proper argument handling (supports spaces in paths)
-    const gitCommand = baseCommand[0]; // 'git'
-    const gitArgs = [...baseCommand.slice(1), ...sanitizedArgs];
-
-    // For logging purposes only
-    const commandDisplay = [gitCommand, ...gitArgs].join(' ');
-
-    execFile(gitCommand, gitArgs, {
-      encoding: 'utf-8',
-      cwd: process.cwd(),
-      timeout: CONFIG.git.timeout,
-      maxBuffer: 10 * 1024 * 1024 // 10MB buffer
-    }, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Git command failed: ${commandDisplay}`, stderr);
-        reject(new Error(`Git operation failed: ${error.message}`));
-      } else {
-        resolve(stdout);
-      }
-    });
-  });
-}
-
 // Enhanced input validation with comprehensive security checks
 function validateFileRequest(file) {
   if (!file || typeof file !== 'string') {
@@ -337,14 +291,14 @@ app.get('/api/health', handleAsyncRoute(async (req, res) => {
   let unstagedCount = 0;
 
   try {
-    const stagedFiles = await executeGitCommand('diff-cached-names');
+    const stagedFiles = await GitService.execute('diff-cached-names');
     stagedCount = stagedFiles.trim() ? stagedFiles.trim().split('\n').filter(f => f.length > 0).length : 0;
   } catch (error) {
     console.warn('Failed to get staged files count:', error.message);
   }
 
   try {
-    const unstagedFiles = await executeGitCommand('status-porcelain');
+    const unstagedFiles = await GitService.execute('status-porcelain');
     const unstagedLines = unstagedFiles.trim().split('\n').filter(line =>
       line.length > 0 && (line.startsWith(' M') || line.startsWith('??'))
     );
@@ -368,7 +322,7 @@ app.get('/api/health', handleAsyncRoute(async (req, res) => {
 
 app.get('/api/summary', handleAsyncRoute(async (req, res) => {
   try {
-    const stats = await executeGitCommand('diff-cached-stat');
+    const stats = await GitService.execute('diff-cached-stat');
     res.json({
       stats: stats.trim(),
       generated: new Date().toISOString()
@@ -384,13 +338,13 @@ app.get('/api/summary', handleAsyncRoute(async (req, res) => {
 
 app.get('/api/staged-files', handleAsyncRoute(async (req, res) => {
   try {
-    const output = await executeGitCommand('diff-cached-names');
+    const output = await GitService.execute('diff-cached-names');
     const files = output.trim() ? output.trim().split('\n').filter(f => f.length > 0) : [];
 
     // Get file statuses to determine if files are deleted
     let fileStatuses = {};
     try {
-      const statusOutput = await executeGitCommand('diff-cached', ['--name-status']);
+      const statusOutput = await GitService.execute('diff-cached', ['--name-status']);
       const statusLines = statusOutput.trim().split('\n').filter(line => line.length > 0);
       statusLines.forEach(line => {
         const [status, filename] = line.split('\t');
@@ -405,7 +359,7 @@ app.get('/api/staged-files', handleAsyncRoute(async (req, res) => {
     // Check for unstaged deleted files
     let deletedFiles = [];
     try {
-      const deletedOutput = await executeGitCommand('status-porcelain');
+      const deletedOutput = await GitService.execute('status-porcelain');
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && (line.startsWith(' D') || line.startsWith('AD'))
       );
@@ -448,7 +402,7 @@ app.get('/api/file-diff', handleAsyncRoute(async (req, res) => {
   }
 
   try {
-    const diff = await executeGitCommand('diff-cached', ['--', file]);
+    const diff = await GitService.execute('diff-cached', ['--', file]);
 
     // If no diff content, the file doesn't exist or has no changes
     if (!diff || diff.trim().length === 0) {
@@ -591,14 +545,12 @@ app.post('/api/export-for-ai', exportRateLimit, handleAsyncRoute(async (req, res
 
   try {
     // Get all staged files with async operation
-    const stagedOutput = await executeGitCommand('diff-cached-names');
-    const stagedFiles = stagedOutput.trim() ?
-      stagedOutput.trim().split('\n').filter(f => f.length > 0) : [];
+    const stagedFiles = await GitService.getStagedFiles();
 
     // Check for unstaged deleted files
     let deletedFiles = [];
     try {
-      const deletedOutput = await executeGitCommand('status-porcelain');
+      const deletedOutput = await GitService.execute('status-porcelain');
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && line.startsWith(' D')
       );
@@ -640,199 +592,35 @@ app.post('/api/export-for-ai', exportRateLimit, handleAsyncRoute(async (req, res
     console.log('✅ Files to include:', includedFiles.length);
     console.log('📊 Excluded count:', stagedFiles.length - includedFiles.length);
 
-    // Generate AI review content
-    const timestamp = new Date().toLocaleString();
-    let content = `# 🔍 Code Review - ${timestamp}
-
-**Project:** AI Visual Code Review
-**Generated by:** AI Visual Code Review v1.0.0
-
-## 📊 Change Summary
-
-\`\`\`
-${await executeGitCommand('diff-cached-stat')}
-\`\`\`
-
-## 📝 Files Changed (${includedFiles.length}/${stagedFiles.length} selected)
-
-`;
-
-    if (excludedFiles && excludedFiles.length > 0) {
-      content += `### ⏭️ Excluded Files
-The following files were excluded from this review:
-${excludedFiles.map(f => `- \`${f}\``).join('\n')}
-
-`;
-    }
-
-    let processedCount = 0;
-    const errors = [];
-
-    // Process each included file with better error handling
-    for (const file of includedFiles) {
-      try {
-        console.log(`✅ Processing: ${file}`);
-
-        // Get file status using GitStatusParser
-        let fileStatus = 'M '; // default to Modified
-        try {
-          const statusOutput = await executeGitCommand('diff-cached', ['--name-status']);
-          const statusLines = statusOutput.trim().split('\n');
-          for (const line of statusLines) {
-            const [status, filename] = line.split('\t');
-            if (filename === file) {
-              fileStatus = status;
-              break;
-            }
-          }
-        } catch (error) {
-          // Ignore error, use defaults
-        }
-
-        // Parse status using comprehensive GitStatusParser
-        const statusInfo = GitStatusParser.parse(fileStatus);
-
-        // Add appropriate header using parser
-        content += `\n${GitStatusParser.getMarkdownHeader(fileStatus, file)}\n\n`;
-
-        // Add status message if needed
-        const statusMessage = GitStatusParser.getStatusMessage(fileStatus);
-        if (statusMessage) {
-          content += `${statusMessage}\n\n`;
-        }
-
-        // Add file type context with enhanced detection (only if not deleted)
-        if (!statusInfo.isDeleted) {
-          const ext = path.extname(file).toLowerCase();
-          const fileTypeMap = {
-            '.tsx': '**Type:** TypeScript React Component ⚛️\n\n',
-            '.ts': '**Type:** TypeScript Source File 📘\n\n',
-            '.js': '**Type:** JavaScript Source File 🟨\n\n',
-            '.jsx': '**Type:** React Component (JavaScript) ⚛️\n\n',
-            '.json': '**Type:** Configuration/Data File 📋\n\n',
-            '.md': '**Type:** Documentation 📖\n\n',
-            '.css': '**Type:** Stylesheet 🎨\n\n',
-            '.scss': '**Type:** Sass Stylesheet 🎨\n\n',
-            '.html': '**Type:** HTML Template 🌐\n\n',
-            '.py': '**Type:** Python Script 🐍\n\n',
-            '.sh': '**Type:** Shell Script 💻\n\n'
-          };
-          content += fileTypeMap[ext] || '**Type:** Source File 📄\n\n';
-        }
-
-        // Add file comment if exists
-        if (comments && comments[file]) {
-          content += `**💭 Review Comment:**\n${comments[file]}\n\n`;
-        }
-
-        // Get diff - handle all file status types
-        try {
-          const diff = await executeGitCommand('diff-cached', ['--', file]);
-          content += DiffService.generateEnhancedDiffMarkdown(diff);
-        } catch (diffError) {
-          // For deleted files, this is expected - they don't have diff content
-          if (statusInfo.isDeleted) {
-            console.log(`ℹ️  File ${file} is deleted - no diff content to show`);
-            content += `**Note:** This file was completely removed and has no diff content to display.\n\n`;
-          } else {
-            throw diffError;
-          }
-        }
-
-        processedCount++;
-      } catch (error) {
-        console.error(`Error processing ${file}:`, error);
-        errors.push(file);
-        content += `**❌ Error:** Could not load diff for \`${file}\` - ${error.message}\n\n`;
-      }
-    }
-
-    // Add line comments section if any exist
-    if (lineComments && Object.keys(lineComments).length > 0) {
-      content += `## 🔍 Line-by-Line Comments
-
-`;
-      Object.entries(lineComments).forEach(([lineId, comment]) => {
-        content += `- **${lineId}:** ${comment}\n`;
-      });
-      content += '\n';
-    }
-
-    // Enhanced review checklist
-    content += `---
-
-## 🤖 AI Review Checklist
-
-Please review these changes for:
-
-### 🔍 Code Quality
-- [ ] **Linting Compliance**: No unused imports/variables, proper formatting
-- [ ] **Type Safety**: Proper typing throughout (TypeScript/JSDoc)
-- [ ] **Best Practices**: Framework-specific conventions and patterns
-- [ ] **Performance**: Efficient algorithms, proper memoization
-- [ ] **Documentation**: Clear comments and function descriptions
-
-### 🐛 Potential Issues
-- [ ] **Runtime Errors**: Type mismatches, null/undefined handling
-- [ ] **Logic Bugs**: Incorrect calculations, edge cases
-- [ ] **Memory Leaks**: Cleanup in lifecycle methods, event listeners
-- [ ] **Error Handling**: Proper try-catch blocks, user feedback
-- [ ] **Accessibility**: ARIA labels, keyboard navigation, screen readers
-
-### 🔒 Security & Data
-- [ ] **Input Validation**: Sanitization, XSS prevention, SQL injection
-- [ ] **Authentication**: Proper access controls and permissions
-- [ ] **Privacy**: No sensitive data exposure in logs/client
-- [ ] **Dependencies**: Updated packages, vulnerability checks
-
-### 📱 UX/UI
-- [ ] **Responsive Design**: Mobile/desktop/tablet compatibility
-- [ ] **Loading States**: Proper feedback during async operations
-- [ ] **Error Messages**: User-friendly error handling and recovery
-- [ ] **Performance**: Fast loading, smooth animations
-
-### 💡 Suggestions & Improvements
-Please provide specific feedback on:
-1. Code organization and structure improvements
-2. Performance optimization opportunities
-3. Security considerations and hardening
-4. Testing coverage and strategies
-5. Documentation and maintainability
-
----
-*Generated by AI Visual Code Review v1.0.0*
-*Files processed: ${processedCount}/${includedFiles.length} | Errors: ${errors.length} | Generated: ${new Date().toISOString()}*
-`;
-
-    // Ensure directory exists and write file
-    const filePath = path.join(process.cwd(), 'AI_REVIEW.md');
-    writeFileSync(filePath, content, 'utf8');
-
-    console.log('✅ AI_REVIEW.md generated successfully');
-    console.log(`📊 Final stats: ${processedCount} files processed, ${excludedFiles?.length || 0} excluded, ${errors.length} errors`);
+    // Use unified review generator
+    const result = await ReviewGenerator.generateUnifiedReview({
+      includedFiles,
+      excludedFiles,
+      // Pass other options if needed by generateUnifiedReview,
+      // though currently it handles content generation primarily.
+    });
 
     res.json({
       success: true,
       file: 'AI_REVIEW.md',
-      filesProcessed: processedCount,
       totalFiles: stagedFiles.length,
-      excludedCount: excludedFiles?.length || 0,
-      excludedFiles: excludedFiles || [],
-      errors: errors,
-      timestamp: new Date().toISOString(),
-      contentLength: content.length
+      includedFiles: includedFiles.length,
+      excludedCount: excludedFiles.length,
+      commentsIncluded: Object.keys(comments).length,
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('❌ Export for AI failed:', error);
+    console.error('❌ Export failed:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to generate AI review',
+      error: 'Failed to create AI documentation',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       timestamp: new Date().toISOString()
     });
   }
 }));
+
 
 // Individual file export endpoint with async operations
 app.post('/api/export-individual-reviews', exportRateLimit, handleAsyncRoute(async (req, res) => {
@@ -854,14 +642,14 @@ app.post('/api/export-individual-reviews', exportRateLimit, handleAsyncRoute(asy
 
   try {
     // Get all staged files with async operation
-    const stagedOutput = await executeGitCommand('diff-cached-names');
+    const stagedOutput = await GitService.execute('diff-cached-names');
     const stagedFiles = stagedOutput.trim() ?
       stagedOutput.trim().split('\n').filter(f => f.length > 0) : [];
 
     // Check for unstaged deleted files
     let deletedFiles = [];
     try {
-      const deletedOutput = await executeGitCommand('status-porcelain');
+      const deletedOutput = await GitService.execute('status-porcelain');
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && line.startsWith(' D')
       );
@@ -879,7 +667,7 @@ app.post('/api/export-individual-reviews', exportRateLimit, handleAsyncRoute(asy
     } else if (stagedFiles.length === 0 && deletedFiles.length > 0) {
       return res.status(400).json({
         success: false,
-        error: `Found ${deletedFiles.length} deleted file(s) but they are not staged. Use "git add -A" to stage all changes including deletions.`,
+        error: `Found ${deletedFiles.length} deleted file(s) but they are not staged.Use "git add -A" to stage all changes including deletions.`,
         deletedFiles: deletedFiles,
         suggestion: 'Run "git add -A" to stage all changes, then try again.',
         timestamp: new Date().toISOString()
@@ -890,194 +678,31 @@ app.post('/api/export-individual-reviews', exportRateLimit, handleAsyncRoute(asy
     const includedFiles = stagedFiles.filter(file => {
       const isExcluded = excludedFiles && excludedFiles.includes(file);
       if (isExcluded) {
-        console.log(`⏭️  Excluding: ${file}`);
+        console.log(`⏭️  Excluding: ${file} `);
       }
       return !isExcluded;
     });
 
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:]/g, '-');
-    const reviewDir = `code-reviews-${timestamp}`;
+    // Use ReviewGenerator service
+    const result = await ReviewGenerator.generateSplitReviews({
+      includedFiles,
+      comments,
+      lineComments
+      // outputDir: undefined // Let it use timestamp default
+    });
 
-    // Create directory
-    const reviewPath = path.join(process.cwd(), reviewDir);
-    try {
-      mkdirSync(reviewPath, { recursive: true });
-    } catch (error) {
-      if (error.code !== 'EEXIST') {
-        throw new Error(`Failed to create review directory: ${error.message}`);
-      }
-    }
-
-    let filesCreated = 0;
-    const errors = [];
-
-    // Create individual review file for each included file
-    for (const file of includedFiles) {
-      try {
-        const safeName = file.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-        const reviewFileName = `review-${safeName}.md`;
-        const reviewFilePath = path.join(reviewPath, reviewFileName);
-
-        // Enhanced file type detection
-        const ext = path.extname(file).toLowerCase();
-        const fileTypeMap = {
-          '.tsx': 'TypeScript React Component ⚛️',
-          '.ts': 'TypeScript Source File 📘',
-          '.js': 'JavaScript Source File 🟨',
-          '.jsx': 'React Component (JavaScript) ⚛️',
-          '.json': 'Configuration/Data File 📋',
-          '.md': 'Documentation 📖',
-          '.css': 'Stylesheet 🎨',
-          '.scss': 'Sass Stylesheet 🎨',
-          '.html': 'HTML Template 🌐',
-          '.py': 'Python Script 🐍',
-          '.sh': 'Shell Script 💻'
-        };
-
-        let content = `# 📄 Code Review: \`${file}\`
-
-**Generated:** ${new Date().toLocaleString()}
-**Project:** AI Visual Code Review
-**Review Type:** Individual File Analysis
-
-## 📊 File Information
-
-**Type:** ${fileTypeMap[ext] || 'Source File 📄'}
-**Path:** \`${file}\`
-**Extension:** ${ext || 'None'}
-
-`;
-
-        // Add file comment if exists
-        if (comments && comments[file]) {
-          content += `## 💭 Review Comment
-
-${comments[file]}
-
-`;
-        }
-
-        // Add line comments if exist for this file
-        const fileLineComments = Object.entries(lineComments || {})
-          .filter(([lineId]) => lineId.includes(file.replace(/[^a-zA-Z0-9]/g, '_')));
-
-        if (fileLineComments.length > 0) {
-          content += `## 🔍 Line Comments
-
-`;
-          fileLineComments.forEach(([lineId, comment]) => {
-            content += `- **${lineId}:** ${comment}\n`;
-          });
-          content += '\n';
-        }
-
-        // Add diff with enhanced line numbers using DiffService
-        try {
-          const diff = await executeGitCommand('diff-cached', ['--', file]);
-          content += `## 📝 Changes
-
-`;
-          content += DiffService.generateEnhancedDiffMarkdown(diff);
-        } catch (error) {
-          console.error(`Error loading diff for ${file}:`, error);
-          errors.push(file);
-          content += `## ❌ Error
-
-Could not load diff for \`${file}\`: ${error.message}
-
-`;
-        }
-
-        // Enhanced review template
-        content += `## 🤖 Comprehensive Review Checklist
-
-### ✅ Code Quality & Standards
-- [ ] **Syntax & Formatting**: Consistent indentation, proper spacing
-- [ ] **Naming Conventions**: Clear, descriptive variable/function names
-- [ ] **Code Structure**: Logical organization, appropriate function size
-- [ ] **Documentation**: Clear comments explaining complex logic
-- [ ] **Type Safety**: Proper typing (if applicable)
-
-### 🔍 Logic & Functionality
-- [ ] **Algorithm Correctness**: Logic implements requirements correctly
-- [ ] **Edge Case Handling**: Boundary conditions properly addressed
-- [ ] **Error Handling**: Appropriate try-catch blocks and error messages
-- [ ] **Performance**: Efficient algorithms, no unnecessary loops
-- [ ] **Memory Management**: Proper cleanup, no memory leaks
-
-### 🐛 Potential Issues & Bugs
-- [ ] **Runtime Errors**: No null/undefined dereferencing
-- [ ] **Type Mismatches**: Consistent data types throughout
-- [ ] **Race Conditions**: Proper async/await handling
-- [ ] **Resource Leaks**: Event listeners, timers properly cleaned up
-- [ ] **Off-by-one Errors**: Array/loop bounds correctly handled
-
-### 🔒 Security Considerations
-- [ ] **Input Validation**: User inputs properly sanitized
-- [ ] **XSS Prevention**: No unsafe HTML injection
-- [ ] **Authentication**: Proper access controls if applicable
-- [ ] **Data Exposure**: No sensitive information in logs/client
-- [ ] **Dependency Security**: No known vulnerable packages
-
-### 📱 User Experience & Accessibility
-- [ ] **Responsive Design**: Works on different screen sizes
-- [ ] **Loading States**: Proper feedback during operations
-- [ ] **Error Messages**: User-friendly error communication
-- [ ] **Accessibility**: ARIA labels, keyboard navigation
-- [ ] **Performance**: Fast loading, smooth interactions
-
-### 💡 Improvement Suggestions
-
-#### Code Organization
-- [ ] Consider extracting complex logic into separate functions
-- [ ] Evaluate if constants should be moved to configuration
-- [ ] Check for code duplication opportunities
-
-#### Performance Optimizations
-- [ ] Identify opportunities for memoization
-- [ ] Consider lazy loading for heavy operations
-- [ ] Evaluate database query efficiency (if applicable)
-
-#### Testing Recommendations
-- [ ] Unit tests for core functionality
-- [ ] Integration tests for API endpoints
-- [ ] Edge case testing scenarios
-
-#### Documentation Needs
-- [ ] API documentation updates
-- [ ] Code comments for complex algorithms
-- [ ] README updates if public interfaces changed
-
-### 📝 Review Notes
-*Add your specific feedback, suggestions, and observations here:*
-
----
-*Individual file review generated by AI Visual Code Review v1.0.0*
-*Generated: ${new Date().toISOString()}*
-`;
-
-        writeFileSync(reviewFilePath, content, 'utf8');
-        filesCreated++;
-        console.log(`✅ Created: ${reviewFileName}`);
-
-      } catch (error) {
-        console.error(`❌ Error creating review for ${file}:`, error);
-        errors.push(file);
-      }
-    }
-
-    console.log(`📊 Individual review stats: ${filesCreated} files created, ${errors.length} errors`);
+    console.log(`📊 Individual review stats: ${result.filesCreated} files created, ${result.errors.length} errors`);
 
     res.json({
       success: true,
-      directory: reviewDir,
-      filesCreated,
+      directory: result.directory,
+      filesCreated: result.filesCreated,
       totalFiles: stagedFiles.length,
       includedFiles: includedFiles.length,
       excludedCount: excludedFiles?.length || 0,
       commentsIncluded: Object.keys(comments || {}).length,
       lineCommentsIncluded: Object.keys(lineComments || {}).length,
-      errors: errors,
+      errors: result.errors,
       timestamp: new Date().toISOString()
     });
 
@@ -1099,11 +724,11 @@ app.get('/', (req, res) => {
     res.sendFile(htmlPath);
   } else {
     res.send(`
-      <h1>AI Visual Code Review</h1>
+  < h1 > AI Visual Code Review</h1 >
       <p>Server is running but interface files are missing.</p>
       <p>Current directory: ${process.cwd()}</p>
       <p>Please ensure the public/index.html file exists.</p>
-    `);
+`);
   }
 });
 
