@@ -1,10 +1,10 @@
 {
   "name": "ai-visual-code-review",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Visual code review tool with AI integration for any Git repository",
   "main": "server.js",
   "bin": {
-    "ai-review": "./bin/ai-review.js"
+    "ai-review": "bin/ai-review.js"
   },
   "scripts": {
     "start": "node server.js",
