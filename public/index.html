@@ -523,10 +523,14 @@
             font-size: 12px;
         }
 
-        .add-comment-btn:hover {
+        .add-comment-btn:hover,
+        .add-comment-btn:focus-visible {
             color: #58a6ff;
             background: rgba(88, 166, 255, 0.1);
             border-radius: 3px;
+            opacity: 1;
+            outline: 2px solid #58a6ff;
+            outline-offset: -2px;
         }
 
         .line-content {
@@ -654,9 +658,9 @@
 
     <!-- Comment Modal -->
     <div class="modal-overlay" id="commentModal" onclick="closeCommentModal(event)">
-        <div class="modal" onclick="event.stopPropagation()">
-            <h3>
-                <span>💭</span>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" onclick="event.stopPropagation()">
+            <h3 id="modal-title">
+                <span aria-hidden="true">💭</span>
                 Add Comment
                 <span id="modalFileName" style="color: #7d8590; font-size: 14px; font-weight: normal;"></span>
             </h3>
@@ -678,6 +682,7 @@
             <textarea
                 id="commentTextarea"
                 class="comment-textarea"
+                aria-label="Comment text"
                 placeholder="Add your review comments, questions, or suggestions for this file..."
             ></textarea>
 
@@ -1225,9 +1230,10 @@
                                     class="comment-btn"
                                     onclick="event.stopPropagation(); showCommentModal('${file}', '${fileId}')"
                                     title="Add comment for this file"
+                                    aria-label="Add comment for ${file}"
                                 >
-                                    <span id="comment-indicator-${fileId}" style="display: none;">💬</span>
-                                    💭
+                                    <span id="comment-indicator-${fileId}" style="display: none;" aria-hidden="true">💬</span>
+                                    <span aria-hidden="true">💭</span>
                                 </button>
                                 <div class="file-stats" id="stats-${fileId}">
                                     <span>Click to load diff</span>
@@ -1420,7 +1426,7 @@
                             <div class="line-numbers">
                                 <span class="old-line-num">${oldNum || ''}</span>
                                 <span class="new-line-num">${newNum || ''}</span>
-                                <button class="add-comment-btn" onclick="addLineComment('${lineId}', '${filename}', ${oldNum || newNum})" title="Add comment to this line">💬</button>
+                                <button class="add-comment-btn" aria-label="Add comment to line ${oldNum || newNum}" onclick="addLineComment('${lineId}', '${filename}', ${oldNum || newNum})" title="Add comment to this line">💬</button>
                             </div>
                             <div class="line-content">
                                 <code>${escapeHtml(line.content)}</code>
