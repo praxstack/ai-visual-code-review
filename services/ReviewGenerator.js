@@ -1,4 +1,5 @@
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const DiffService = require('./diffService');
 const GitStatusParser = require('./gitStatusParser');
@@ -45,7 +46,7 @@ class ReviewGenerator {
     summaryContent += `**Total Files:** ${includedFiles.length}\n\n`;
     summaryContent += `## 📂 Review Files\n`;
 
-    for (const file of includedFiles) {
+    const reviewResults = await Promise.all(includedFiles.map(async (file) => {
       try {
         const safeName = file.replace(/[^a-zA-Z0-9.\-_]/g, '_');
         const reviewFileName = `review-${safeName}.md`;
@@ -53,21 +54,38 @@ class ReviewGenerator {
 
         const content = await this.generateFileContent(file, comments[file], lineComments);
 
-        fs.writeFileSync(reviewFilePath, content, 'utf8');
-        filesCreated++;
-        createdFiles.push(reviewFileName);
+        await fsp.writeFile(reviewFilePath, content, 'utf8');
 
-        summaryContent += `- [${file}](./${reviewFileName})\n`;
+        return {
+          success: true,
+          file,
+          reviewFileName
+        };
 
       } catch (error) {
         console.error(`❌ Error creating review for ${file}:`, error);
-        errors.push(file);
-        summaryContent += `- ❌ ${file} (Error: ${error.message})\n`;
+        return {
+          success: false,
+          file,
+          error: error.message
+        };
+      }
+    }));
+
+    // Process results to maintain consistent summary and stats
+    for (const result of reviewResults) {
+      if (result.success) {
+        filesCreated++;
+        createdFiles.push(result.reviewFileName);
+        summaryContent += `- [${result.file}](./${result.reviewFileName})\n`;
+      } else {
+        errors.push(result.file);
+        summaryContent += `- ❌ ${result.file} (Error: ${result.error})\n`;
       }
     }
 
     // Write Summary
-    fs.writeFileSync(path.join(reviewPath, '00_SUMMARY.md'), summaryContent, 'utf8');
+    await fsp.writeFile(path.join(reviewPath, '00_SUMMARY.md'), summaryContent, 'utf8');
 
     return {
       success: true,
