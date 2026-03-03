@@ -513,7 +513,8 @@ app.post('/api/log-comment', handleAsyncRoute(async (req, res) => {
   const sanitizedComment = comment.substring(0, 200);
   const sanitizedType = type.replace(/[^\w\-_]/g, '').substring(0, 20);
 
-  console.log(`💬 ${sanitizedType}: ${sanitizedFile}${lineNumber ? ` Line ${lineNumber}` : ''}: "${sanitizedComment}"`);
+  // Log the comment with sanitized content
+  console.info(`💬 ${sanitizedType}: ${sanitizedFile}${lineNumber ? ` Line ${lineNumber}` : ''}: "${sanitizedComment}"`);
 
   res.json({
     success: true,
