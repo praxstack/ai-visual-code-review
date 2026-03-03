@@ -124,16 +124,7 @@ const ALLOWED_ORIGINS = [
 ];
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? false
-    : (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      if (ALLOWED_ORIGINS.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error('CORS policy violation'), false);
-    },
+  origin: ALLOWED_ORIGINS,
   credentials: false,
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type']
