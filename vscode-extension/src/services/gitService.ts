@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -99,7 +99,7 @@ export class GitService {
      */
     async getFileDiff(workspaceRoot: string, filename: string): Promise<string> {
         try {
-            const output = execSync(`git diff --cached -- "${filename}"`, {
+            const output = execFileSync('git', ['diff', '--cached', '--', filename], {
                 cwd: workspaceRoot,
                 encoding: 'utf8',
                 maxBuffer: 10 * 1024 * 1024 // 10MB buffer

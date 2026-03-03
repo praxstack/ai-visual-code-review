@@ -90,7 +90,7 @@ class GitService {
      */
     async getFileDiff(workspaceRoot, filename) {
         try {
-            const output = (0, child_process_1.execSync)(`git diff --cached -- "${filename}"`, {
+            const output = (0, child_process_1.execFileSync)('git', ['diff', '--cached', '--', filename], {
                 cwd: workspaceRoot,
                 encoding: 'utf8',
                 maxBuffer: 10 * 1024 * 1024 // 10MB buffer
