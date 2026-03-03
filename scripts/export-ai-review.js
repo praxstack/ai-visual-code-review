@@ -6,7 +6,7 @@
  * Supports include/exclude file patterns
  */
 
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const { writeFileSync, mkdirSync, existsSync } = require('fs');
 const path = require('path');
 
@@ -231,7 +231,7 @@ function isTooLarge(file) {
   if (!config.skipLargeFiles) return false;
 
   try {
-    const content = execSync(`git show :${file}`, { encoding: 'utf-8' });
+    const content = execFileSync('git', ['show', `:${file}`], { encoding: 'utf-8' });
     const lineCount = content.split('\n').length;
     return lineCount > config.maxFileSize;
   } catch (error) {

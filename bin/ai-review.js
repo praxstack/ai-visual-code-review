@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { execSync, spawn } = require('child_process');
+const { execSync, spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -145,14 +145,9 @@ function quickReview(additionalArgs = []) {
   const scriptPath = path.join(__dirname, '..', 'scripts', 'export-ai-review.js');
 
   try {
-    // Build command with arguments
     const argsString = additionalArgs.join(' ');
-    const command = argsString
-      ? `node "${scriptPath}" ${argsString}`
-      : `node "${scriptPath}"`;
-
-    console.log(`🔍 Running: ${command}`);
-    execSync(command, { stdio: 'inherit', cwd: process.cwd() });
+    console.log(`🔍 Running: node "${scriptPath}" ${argsString}`);
+    execFileSync('node', [scriptPath, ...additionalArgs], { stdio: 'inherit', cwd: process.cwd() });
   } catch (error) {
     console.error('❌ Quick review generation failed');
     console.error(error.message);
