@@ -45,7 +45,8 @@ class ReviewGenerator {
     summaryContent += `**Total Files:** ${includedFiles.length}\n\n`;
     summaryContent += `## 📂 Review Files\n`;
 
-    for (const file of includedFiles) {
+    // Process files concurrently for better performance
+    const filePromises = includedFiles.map(async (file) => {
       try {
         const safeName = file.replace(/[^a-zA-Z0-9.\-_]/g, '_');
         const reviewFileName = `review-${safeName}.md`;
@@ -53,21 +54,30 @@ class ReviewGenerator {
 
         const content = await this.generateFileContent(file, comments[file], lineComments);
 
-        fs.writeFileSync(reviewFilePath, content, 'utf8');
-        filesCreated++;
-        createdFiles.push(reviewFileName);
-
-        summaryContent += `- [${file}](./${reviewFileName})\n`;
-
+        await fs.promises.writeFile(reviewFilePath, content, 'utf8');
+        return { success: true, file, reviewFileName };
       } catch (error) {
         console.error(`❌ Error creating review for ${file}:`, error);
-        errors.push(file);
-        summaryContent += `- ❌ ${file} (Error: ${error.message})\n`;
+        return { success: false, file, error };
+      }
+    });
+
+    const results = await Promise.all(filePromises);
+
+    // Build summary content based on results
+    for (const result of results) {
+      if (result.success) {
+        filesCreated++;
+        createdFiles.push(result.reviewFileName);
+        summaryContent += `- [${result.file}](./${result.reviewFileName})\n`;
+      } else {
+        errors.push(result.file);
+        summaryContent += `- ❌ ${result.file} (Error: ${result.error.message})\n`;
       }
     }
 
     // Write Summary
-    fs.writeFileSync(path.join(reviewPath, '00_SUMMARY.md'), summaryContent, 'utf8');
+    await fs.promises.writeFile(path.join(reviewPath, '00_SUMMARY.md'), summaryContent, 'utf8');
 
     return {
       success: true,
@@ -122,20 +132,21 @@ class ReviewGenerator {
       // console.warn('Failed to get file statuses:', error);
     }
 
-    // Process each included file
-    for (const file of includedFiles) {
+    // Process files concurrently for better performance
+    const filePromises = includedFiles.map(async (file) => {
       try {
         console.log(`✅ Processing: ${file}`);
+        let fileContent = '';
 
         // Get file status
         let fileStatus = fileStatuses[file] || 'M ';
-
         const statusInfo = GitStatusParser.parse(fileStatus);
-        content += `\n${GitStatusParser.getMarkdownHeader(fileStatus, file)}\n\n`;
+
+        fileContent += `\n${GitStatusParser.getMarkdownHeader(fileStatus, file)}\n\n`;
 
         const statusMessage = GitStatusParser.getStatusMessage(fileStatus);
         if (statusMessage) {
-          content += `${statusMessage}\n\n`;
+          fileContent += `${statusMessage}\n\n`;
         }
 
         if (!statusInfo.isDeleted) {
@@ -157,36 +168,42 @@ class ReviewGenerator {
             '.yml': '**Type:** YAML Configuration 📋\n\n',
             '.toml': '**Type:** TOML Configuration 📋\n\n'
           };
-          content += fileTypeMap[ext] || '**Type:** Source File 📄\n\n';
+          fileContent += fileTypeMap[ext] || '**Type:** Source File 📄\n\n';
         }
 
         // Get diff
-        let diff;
         try {
-          diff = await GitService.getDiffForFile(file);
+          const diff = await GitService.getDiffForFile(file);
           if (!diff || diff.trim().length === 0) {
-            if (statusInfo.isDeleted) {
-              processedCount++;
-              continue;
+            if (!statusInfo.isDeleted) {
+              throw new Error('No diff content');
             }
-            throw new Error('No diff content');
           } else {
-            content += DiffService.generateEnhancedDiffMarkdown(diff);
+            fileContent += DiffService.generateEnhancedDiffMarkdown(diff);
           }
         } catch (diffError) {
-          if (statusInfo.isDeleted) {
-            processedCount++;
-            continue;
+          if (!statusInfo.isDeleted) {
+            throw diffError;
           }
-          throw diffError;
         }
 
-        processedCount++;
-
+        return { success: true, file, content: fileContent };
       } catch (error) {
         console.error(`❌ Error processing ${file}:`, error.message);
-        errors.push(file);
-        content += `**❌ Error:** Could not load diff for \`${file}\` - ${error.message}\n\n`;
+        return { success: false, file, error };
+      }
+    });
+
+    const results = await Promise.all(filePromises);
+
+    // Build final content based on results sequentially to preserve order
+    for (const result of results) {
+      if (result.success) {
+        content += result.content;
+        processedCount++;
+      } else {
+        errors.push(result.file);
+        content += `**❌ Error:** Could not load diff for \`${result.file}\` - ${result.error.message}\n\n`;
       }
     }
 
@@ -194,7 +211,7 @@ class ReviewGenerator {
 
     // Write to file
     const filePath = path.join(process.cwd(), 'AI_REVIEW.md');
-    fs.writeFileSync(filePath, content, 'utf8');
+    await fs.promises.writeFile(filePath, content, 'utf8');
 
     return {
       success: true,
