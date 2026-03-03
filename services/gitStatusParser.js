@@ -161,15 +161,15 @@ class GitStatusParser {
   static getMarkdownHeader(statusCode, filename) {
     const parsed = this.parse(statusCode);
 
-    if (parsed.isDeleted) {
+    if (parsed.primaryAction === 'deleted') {
       return `### 🗑️ \`${filename}\` **[DELETED]**`;
-    } else if (parsed.isAdded) {
-      return `### ✨ \`${filename}\` **[ADDED]**`;
-    } else if (parsed.hasConflict) {
+    } else if (parsed.primaryAction === 'conflict') {
       return `### ⚠️ \`${filename}\` **[CONFLICT]**`;
-    } else if (statusCode.includes('R')) {
+    } else if (parsed.primaryAction === 'added') {
+      return `### ✨ \`${filename}\` **[ADDED]**`;
+    } else if (parsed.primaryAction === 'renamed') {
       return `### 🔄 \`${filename}\` **[RENAMED]**`;
-    } else if (statusCode.includes('C')) {
+    } else if (parsed.primaryAction === 'copied') {
       return `### 📋 \`${filename}\` **[COPIED]**`;
     } else {
       return `### 📄 \`${filename}\``;
@@ -182,15 +182,15 @@ class GitStatusParser {
   static getStatusMessage(statusCode) {
     const parsed = this.parse(statusCode);
 
-    if (parsed.isDeleted) {
+    if (parsed.primaryAction === 'deleted') {
       return '**Status:** 🚨 **DELETED FILE** - This file has been completely removed';
-    } else if (parsed.isAdded) {
-      return '**Status:** ✅ **NEW FILE** - This file has been newly created';
-    } else if (parsed.hasConflict) {
+    } else if (parsed.primaryAction === 'conflict') {
       return '**Status:** ⚠️ **CONFLICT** - This file has merge conflicts that need resolution';
-    } else if (statusCode.includes('R')) {
+    } else if (parsed.primaryAction === 'added') {
+      return '**Status:** ✅ **NEW FILE** - This file has been newly created';
+    } else if (parsed.primaryAction === 'renamed') {
       return '**Status:** 🔄 **RENAMED** - This file has been renamed or moved';
-    } else if (statusCode.includes('C')) {
+    } else if (parsed.primaryAction === 'copied') {
       return '**Status:** 📋 **COPIED** - This file has been copied from another file';
     } else {
       return null; // No special status message needed
