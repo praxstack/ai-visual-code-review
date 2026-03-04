@@ -1,3 +1,6 @@
 ## 2024-05-18 - Optimize asynchronous file operations and child processes in `services/ReviewGenerator.js`
 **Learning:** `generateSplitReviews` and `generateUnifiedReview` previously executed Git operations (e.g. `GitService.getDiffForFile`) and file write operations (`fs.writeFileSync`) sequentially within a `for...of` loop. For large PRs or repos with many changed files, this sequential execution significantly bottlenecks review generation time.
 **Action:** Replace `for...of` loops over `includedFiles` with an array of Promises processed via `Promise.all`. This allows Git diffs to be requested and files to be written in parallel, substantially cutting down end-to-end execution time for large payloads. It is critical to use asynchronous I/O (`fs.promises.writeFile`) instead of synchronous alternatives.
+## 2026-03-04 - Parallelize independent Git CLI commands
+**Learning:** Sequential execution of Git CLI commands (via `child_process.execFile`) adds unnecessary latency to endpoints like `/api/staged-files` and `/api/health`. These commands are independent and can be safely parallelized.
+**Action:** Always look for opportunities to run independent asynchronous operations concurrently using `Promise.all` to reduce response times, especially for operations that wrap CLI calls.
