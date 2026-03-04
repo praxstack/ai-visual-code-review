@@ -281,21 +281,27 @@ app.get('/api/health', handleAsyncRoute(async (req, res) => {
   let stagedCount = 0;
   let unstagedCount = 0;
 
-  try {
-    const stagedFiles = await GitService.execute('diff-cached-names');
-    stagedCount = stagedFiles.trim() ? stagedFiles.trim().split('\n').filter(f => f.length > 0).length : 0;
-  } catch (error) {
-    console.warn('Failed to get staged files count:', error.message);
+  // Run git commands in parallel
+  const [stagedFilesOutput, unstagedFilesOutput] = await Promise.all([
+    GitService.execute('diff-cached-names').catch(error => {
+      console.warn('Failed to get staged files count:', error.message);
+      return '';
+    }),
+    GitService.execute('status-porcelain').catch(error => {
+      console.warn('Failed to get unstaged files count:', error.message);
+      return '';
+    })
+  ]);
+
+  if (stagedFilesOutput) {
+    stagedCount = stagedFilesOutput.trim() ? stagedFilesOutput.trim().split('\n').filter(f => f.length > 0).length : 0;
   }
 
-  try {
-    const unstagedFiles = await GitService.execute('status-porcelain');
-    const unstagedLines = unstagedFiles.trim().split('\n').filter(line =>
+  if (unstagedFilesOutput) {
+    const unstagedLines = unstagedFilesOutput.trim().split('\n').filter(line =>
       line.length > 0 && (line.startsWith(' M') || line.startsWith('??'))
     );
     unstagedCount = unstagedLines.length;
-  } catch (error) {
-    console.warn('Failed to get unstaged files count:', error.message);
   }
 
   const totalChanges = stagedCount + unstagedCount;
@@ -329,13 +335,18 @@ app.get('/api/summary', handleAsyncRoute(async (req, res) => {
 
 app.get('/api/staged-files', handleAsyncRoute(async (req, res) => {
   try {
-    const output = await GitService.execute('diff-cached-names');
+    // Run git commands in parallel to optimize response time
+    const [output, statusOutput, deletedOutput] = await Promise.all([
+      GitService.execute('diff-cached-names'),
+      GitService.execute('diff-cached', ['--name-status']).catch(() => ''),
+      GitService.execute('status-porcelain').catch(() => '')
+    ]);
+
     const files = output.trim() ? output.trim().split('\n').filter(f => f.length > 0) : [];
 
     // Get file statuses to determine if files are deleted
     let fileStatuses = {};
-    try {
-      const statusOutput = await GitService.execute('diff-cached', ['--name-status']);
+    if (statusOutput) {
       const statusLines = statusOutput.trim().split('\n').filter(line => line.length > 0);
       statusLines.forEach(line => {
         const [status, filename] = line.split('\t');
@@ -343,20 +354,15 @@ app.get('/api/staged-files', handleAsyncRoute(async (req, res) => {
           fileStatuses[filename] = status;
         }
       });
-    } catch (error) {
-      // Ignore error, fileStatuses will remain empty
     }
 
     // Check for unstaged deleted files
     let deletedFiles = [];
-    try {
-      const deletedOutput = await GitService.execute('status-porcelain');
+    if (deletedOutput) {
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && (line.startsWith(' D') || line.startsWith('AD'))
       );
       deletedFiles = deletedLines.map(line => line.substring(line.startsWith('AD') ? 3 : 3));
-    } catch (error) {
-      // Ignore error, deletedFiles will remain empty
     }
 
     res.json({
