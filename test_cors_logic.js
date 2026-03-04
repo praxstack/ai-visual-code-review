@@ -9,7 +9,7 @@ const ALLOWED_ORIGINS = [
 // https://github.com/expressjs/cors/blob/master/lib/index.js
 function isOriginAllowed(origin, allowedOrigin) {
   if (Array.isArray(allowedOrigin)) {
-    for (var i = 0; i < allowedOrigin.length; ++i) {
+    for (let i = 0; i < allowedOrigin.length; ++i) {
       if (isOriginAllowed(origin, allowedOrigin[i])) {
         return true;
       }

@@ -31,7 +31,8 @@ function validateFileRequest(file) {
 
   // Additional checks for suspicious patterns
   const suspiciousPatterns = [
-    /\x00/,           // Null bytes
+    // eslint-disable-next-line no-control-regex
+    /\u0000/,           // Null bytes
     /[<>"|*?]/,       // Dangerous file characters
     /^\//,            // Absolute paths
     /^[a-zA-Z]:\\/,   // Windows absolute paths

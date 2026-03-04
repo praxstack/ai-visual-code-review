@@ -270,7 +270,7 @@ if (result.output.trim().length > 0) {
 }
 
 // Summary
-console.log('\n' + '='.repeat(60));
+console.log(`\n${  '='.repeat(60)}`);
 console.log('📊 TEST RESULTS SUMMARY');
 console.log('='.repeat(60));
 console.log(`✅ Passed: ${results.passed.length}`);
@@ -293,7 +293,7 @@ if (results.skipped.length > 0) {
   results.skipped.forEach(test => console.log(`  - ${test}`));
 }
 
-console.log('\n' + '='.repeat(60));
+console.log(`\n${  '='.repeat(60)}`);
 
 if (results.failed.length === 0) {
   console.log('✅ ALL TESTS PASSED! Ready for deployment.');
