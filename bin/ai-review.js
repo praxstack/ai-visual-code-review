@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { execSync, spawn, execFileSync } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -75,7 +75,7 @@ npm:        https://www.npmjs.com/package/ai-visual-code-review
 
 function checkGitRepo() {
   try {
-    execSync('git rev-parse --git-dir', { stdio: 'ignore' });
+    execFileSync('git', ['rev-parse', '--git-dir'], { stdio: 'ignore' });
     return true;
   } catch (error) {
     console.error('❌ Error: Not a git repository');
@@ -110,9 +110,9 @@ function startServer(port = PORT, openBrowser = false) {
       const url = `http://localhost:${port}`;
       console.log(`\n🌐 Opening browser: ${url}`);
 
-      const start = (process.platform == 'darwin' ? 'open' : process.platform == 'win32' ? 'start' : 'xdg-open');
+      const start = (process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open');
       try {
-        execSync(`${start} ${url}`, { stdio: 'ignore' });
+        execFileSync(start, [url], { stdio: 'ignore' });
       } catch (error) {
         console.log('💡 Could not open browser automatically');
         console.log('   Please open manually:', url);

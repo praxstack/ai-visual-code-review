@@ -57,7 +57,7 @@ class GitService {
             console.error('Failed to get staged files via VS Code API, falling back to command line:', error);
             // Fallback to command line git
             try {
-                const output = (0, child_process_1.execSync)('git diff --cached --name-only', {
+                const output = (0, child_process_1.execFileSync)('git', ['diff', '--cached', '--name-only'], {
                     cwd: workspaceRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
                     encoding: 'utf8'
                 });
@@ -74,7 +74,7 @@ class GitService {
      */
     async getDiffStats(workspaceRoot) {
         try {
-            const output = (0, child_process_1.execSync)('git diff --cached --stat', {
+            const output = (0, child_process_1.execFileSync)('git', ['diff', '--cached', '--stat'], {
                 cwd: workspaceRoot,
                 encoding: 'utf8'
             });
@@ -122,15 +122,15 @@ class GitService {
             console.error('Failed to get repository status via API, using fallback:', error);
             // Fallback to command line
             try {
-                const stagedOutput = (0, child_process_1.execSync)('git diff --cached --name-only', {
+                const stagedOutput = (0, child_process_1.execFileSync)('git', ['diff', '--cached', '--name-only'], {
                     cwd: workspaceRoot,
                     encoding: 'utf8'
                 });
-                const unstagedOutput = (0, child_process_1.execSync)('git diff --name-only', {
+                const unstagedOutput = (0, child_process_1.execFileSync)('git', ['diff', '--name-only'], {
                     cwd: workspaceRoot,
                     encoding: 'utf8'
                 });
-                const branchOutput = (0, child_process_1.execSync)('git branch --show-current', {
+                const branchOutput = (0, child_process_1.execFileSync)('git', ['branch', '--show-current'], {
                     cwd: workspaceRoot,
                     encoding: 'utf8'
                 });
@@ -158,7 +158,7 @@ class GitService {
      */
     isGitRepository(workspaceRoot) {
         try {
-            (0, child_process_1.execSync)('git rev-parse --git-dir', {
+            (0, child_process_1.execFileSync)('git', ['rev-parse', '--git-dir'], {
                 cwd: workspaceRoot,
                 stdio: 'ignore'
             });

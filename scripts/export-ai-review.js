@@ -6,7 +6,7 @@
  * Supports include/exclude file patterns
  */
 
-const { execSync, execFileSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const { writeFileSync, mkdirSync, existsSync } = require('fs');
 const path = require('path');
 
@@ -113,7 +113,7 @@ console.log('===================');
 
 // Check if we're in a git repository
 try {
-  execSync('git rev-parse --git-dir', { stdio: 'ignore' });
+  execFileSync('git', ['rev-parse', '--git-dir'], { stdio: 'ignore' });
 } catch (error) {
   console.error('❌ Error: Not a git repository');
   console.error('💡 Please run this command inside a git repository');
@@ -125,7 +125,7 @@ let stagedFiles = [];
 let deletedFiles = [];
 
 try {
-  const output = execSync('git diff --cached --name-only', { encoding: 'utf-8' });
+  const output = execFileSync('git', ['diff', '--cached', '--name-only'], { encoding: 'utf-8' });
   stagedFiles = output.trim() ? output.trim().split('\n').filter(f => f.length > 0) : [];
 } catch (error) {
   console.error('❌ Error getting staged files:', error.message);
@@ -133,7 +133,7 @@ try {
 }
 
 try {
-  const deletedOutput = execSync('git ls-files --deleted', { encoding: 'utf-8' });
+  const deletedOutput = execFileSync('git', ['ls-files', '--deleted'], { encoding: 'utf-8' });
   deletedFiles = deletedOutput.trim() ? deletedOutput.trim().split('\n').filter(f => f.length > 0) : [];
 } catch (error) {
   // Ignore error, deletedFiles will remain empty
@@ -189,7 +189,7 @@ function matchPattern(file, pattern) {
   // Directory exclusion: "node_modules/" or "node_modules/*"
   if (pattern.endsWith('/') || pattern.endsWith('/*')) {
     const dir = pattern.replace(/\/?\\*?$/, '');
-    if (file.startsWith(dir + '/')) return true;
+    if (file.startsWith(`${dir  }/`)) return true;
   }
 
   // Extension pattern: "*.log"
@@ -203,13 +203,13 @@ function matchPattern(file, pattern) {
     // Convert glob pattern to regex
     // scripts/**/*.js -> ^scripts\/(.*\/)?[^/]*\.js$
     // ** means "zero or more directories", so **/ becomes (.*\/)?
-    let regexPattern = pattern
+    const regexPattern = pattern
       .replace(/\*\*\//g, '__DOUBLESTARSLASH__')  // Placeholder for **/
       .replace(/\./g, '\\.')  // Escape dots
       .replace(/\//g, '\\/')  // Escape forward slashes
       .replace(/\*/g, '[^/]*')  // * matches any characters except /
       .replace(/__DOUBLESTARSLASH__/g, '(.*\\/)?');  // **/ means zero or more dirs
-    const regex = new RegExp('^' + regexPattern + '$');
+    const regex = new RegExp(`^${  regexPattern  }$`);
     if (regex.test(file)) return true;
   }
 
@@ -219,7 +219,7 @@ function matchPattern(file, pattern) {
       .replace(/\./g, '\\.')
       .replace(/\//g, '\\/')
       .replace(/\*/g, '[^/]*');
-    const regex = new RegExp('^' + regexPattern + '$');
+    const regex = new RegExp(`^${  regexPattern  }$`);
     if (regex.test(file)) return true;
   }
 
@@ -256,7 +256,7 @@ for (const file of stagedFiles) {
   }
 }
 
-console.log(`\n📊 Summary:`);
+console.log('\n📊 Summary:');
 console.log(`   Included: ${includedFiles.length} files`);
 console.log(`   Excluded: ${excludedFiles.length} files`);
 console.log(`   Too large: ${largeFiles.length} files`);
@@ -269,9 +269,9 @@ if (includedFiles.length === 0) {
 // Generate AI review content
 if (config.splitMode) {
   const outDirName = config.outputDir === 'AI_REVIEWS' ? undefined : config.outputDir; // undefined triggers timestamp default in service
-  console.log(`\nmode: ✂️  Split Mode`);
+  console.log('\nmode: ✂️  Split Mode');
   if (outDirName) console.log(`Output: ${outDirName}/`);
-  else console.log(`Output: [Auto-Timestamped Directory]`);
+  else console.log('Output: [Auto-Timestamped Directory]');
 
   (async () => {
     try {

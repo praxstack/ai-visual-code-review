@@ -80,7 +80,7 @@ function requestLogger(req, res, next) {
 
     const userAgent = req.get('User-Agent') || '';
     const queryString = JSON.stringify(req.query);
-    const fullUrl = req.path + (req.query ? '?' + new URLSearchParams(req.query).toString() : '');
+    const fullUrl = req.path + (req.query ? `?${  new URLSearchParams(req.query).toString()}` : '');
 
     const suspiciousFound = suspiciousPatterns.some(pattern =>
       pattern.test(fullUrl) ||

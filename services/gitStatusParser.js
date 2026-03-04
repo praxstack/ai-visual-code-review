@@ -36,7 +36,7 @@ class GitStatusParser {
    */
   static parse(statusCode) {
     // Normalize status code to 2 characters
-    const normalizedStatus = (statusCode + '  ').slice(0, 2);
+    const normalizedStatus = (`${statusCode  }  `).slice(0, 2);
     const indexStatus = normalizedStatus[0];
     const workingStatus = normalizedStatus[1];
 

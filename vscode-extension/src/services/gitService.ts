@@ -1,4 +1,4 @@
-import { execSync, execFileSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -66,7 +66,7 @@ export class GitService {
 
             // Fallback to command line git
             try {
-                const output = execSync('git diff --cached --name-only', {
+                const output = execFileSync('git', ['diff', '--cached', '--name-only'], {
                     cwd: workspaceRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
                     encoding: 'utf8'
                 });
@@ -83,7 +83,7 @@ export class GitService {
      */
     async getDiffStats(workspaceRoot: string): Promise<string> {
         try {
-            const output = execSync('git diff --cached --stat', {
+            const output = execFileSync('git', ['diff', '--cached', '--stat'], {
                 cwd: workspaceRoot,
                 encoding: 'utf8'
             });
@@ -138,15 +138,15 @@ export class GitService {
 
             // Fallback to command line
             try {
-                const stagedOutput = execSync('git diff --cached --name-only', {
+                const stagedOutput = execFileSync('git', ['diff', '--cached', '--name-only'], {
                     cwd: workspaceRoot,
                     encoding: 'utf8'
                 });
-                const unstagedOutput = execSync('git diff --name-only', {
+                const unstagedOutput = execFileSync('git', ['diff', '--name-only'], {
                     cwd: workspaceRoot,
                     encoding: 'utf8'
                 });
-                const branchOutput = execSync('git branch --show-current', {
+                const branchOutput = execFileSync('git', ['branch', '--show-current'], {
                     cwd: workspaceRoot,
                     encoding: 'utf8'
                 });
@@ -176,7 +176,7 @@ export class GitService {
      */
     isGitRepository(workspaceRoot: string): boolean {
         try {
-            execSync('git rev-parse --git-dir', {
+            execFileSync('git', ['rev-parse', '--git-dir'], {
                 cwd: workspaceRoot,
                 stdio: 'ignore'
             });
