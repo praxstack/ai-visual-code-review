@@ -282,20 +282,28 @@ app.get('/api/health', handleAsyncRoute(async (req, res) => {
   let unstagedCount = 0;
 
   try {
-    const stagedFiles = await GitService.execute('diff-cached-names');
-    stagedCount = stagedFiles.trim() ? stagedFiles.trim().split('\n').filter(f => f.length > 0).length : 0;
-  } catch (error) {
-    console.warn('Failed to get staged files count:', error.message);
-  }
+    // ⚡ Bolt Performance Optimization:
+    // Execute independent Git state commands concurrently rather than sequentially.
+    // This reduces the total I/O wait time when determining repository health.
+    const [stagedFiles, unstagedFiles] = await Promise.all([
+      GitService.execute('diff-cached-names').catch(error => {
+        console.warn('Failed to get staged files count:', error.message);
+        return '';
+      }),
+      GitService.execute('status-porcelain').catch(error => {
+        console.warn('Failed to get unstaged files count:', error.message);
+        return '';
+      })
+    ]);
 
-  try {
-    const unstagedFiles = await GitService.execute('status-porcelain');
+    stagedCount = stagedFiles.trim() ? stagedFiles.trim().split('\n').filter(f => f.length > 0).length : 0;
+
     const unstagedLines = unstagedFiles.trim().split('\n').filter(line =>
       line.length > 0 && (line.startsWith(' M') || line.startsWith('??'))
     );
     unstagedCount = unstagedLines.length;
   } catch (error) {
-    console.warn('Failed to get unstaged files count:', error.message);
+    console.warn('Health check git operations failed:', error.message);
   }
 
   const totalChanges = stagedCount + unstagedCount;
@@ -329,13 +337,20 @@ app.get('/api/summary', handleAsyncRoute(async (req, res) => {
 
 app.get('/api/staged-files', handleAsyncRoute(async (req, res) => {
   try {
-    const output = await GitService.execute('diff-cached-names');
+    // ⚡ Bolt Performance Optimization:
+    // Fetch file names, file statuses, and unstaged deleted files in parallel.
+    // Eliminates sequential process-spawning bottlenecks for Git CLI commands.
+    const [output, statusOutput, deletedOutput] = await Promise.all([
+      GitService.execute('diff-cached-names'),
+      GitService.execute('diff-cached', ['--name-status']).catch(() => ''),
+      GitService.execute('status-porcelain').catch(() => '')
+    ]);
+
     const files = output.trim() ? output.trim().split('\n').filter(f => f.length > 0) : [];
 
     // Get file statuses to determine if files are deleted
     let fileStatuses = {};
-    try {
-      const statusOutput = await GitService.execute('diff-cached', ['--name-status']);
+    if (statusOutput) {
       const statusLines = statusOutput.trim().split('\n').filter(line => line.length > 0);
       statusLines.forEach(line => {
         const [status, filename] = line.split('\t');
@@ -343,20 +358,15 @@ app.get('/api/staged-files', handleAsyncRoute(async (req, res) => {
           fileStatuses[filename] = status;
         }
       });
-    } catch (error) {
-      // Ignore error, fileStatuses will remain empty
     }
 
     // Check for unstaged deleted files
     let deletedFiles = [];
-    try {
-      const deletedOutput = await GitService.execute('status-porcelain');
+    if (deletedOutput) {
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && (line.startsWith(' D') || line.startsWith('AD'))
       );
       deletedFiles = deletedLines.map(line => line.substring(line.startsWith('AD') ? 3 : 3));
-    } catch (error) {
-      // Ignore error, deletedFiles will remain empty
     }
 
     res.json({
@@ -536,19 +546,21 @@ app.post('/api/export-for-ai', exportRateLimit, handleAsyncRoute(async (req, res
   console.log('🔍 Line comments:', Object.keys(lineComments).length);
 
   try {
-    // Get all staged files with async operation
-    const stagedFiles = await GitService.getStagedFiles();
+    // ⚡ Bolt Performance Optimization:
+    // Parallelize retrieving the staged files list and checking for deleted files
+    // to reduce latency when starting the export generation process.
+    const [stagedFiles, deletedOutput] = await Promise.all([
+      GitService.getStagedFiles(),
+      GitService.execute('status-porcelain').catch(() => '')
+    ]);
 
     // Check for unstaged deleted files
     let deletedFiles = [];
-    try {
-      const deletedOutput = await GitService.execute('status-porcelain');
+    if (deletedOutput) {
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && line.startsWith(' D')
       );
       deletedFiles = deletedLines.map(line => line.substring(3));
-    } catch (error) {
-      // Ignore error, deletedFiles will remain empty
     }
 
     console.log('📁 All staged files:', stagedFiles.length);
@@ -633,21 +645,24 @@ app.post('/api/export-individual-reviews', exportRateLimit, handleAsyncRoute(asy
   console.log('💬 File comments:', Object.keys(comments).length);
 
   try {
-    // Get all staged files with async operation
-    const stagedOutput = await GitService.execute('diff-cached-names');
+    // ⚡ Bolt Performance Optimization:
+    // Parallelize retrieving the staged files list and checking for deleted files
+    // to reduce latency when starting the individual export generation process.
+    const [stagedOutput, deletedOutput] = await Promise.all([
+      GitService.execute('diff-cached-names'),
+      GitService.execute('status-porcelain').catch(() => '')
+    ]);
+
     const stagedFiles = stagedOutput.trim() ?
       stagedOutput.trim().split('\n').filter(f => f.length > 0) : [];
 
     // Check for unstaged deleted files
     let deletedFiles = [];
-    try {
-      const deletedOutput = await GitService.execute('status-porcelain');
+    if (deletedOutput) {
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && line.startsWith(' D')
       );
       deletedFiles = deletedLines.map(line => line.substring(3));
-    } catch (error) {
-      // Ignore error, deletedFiles will remain empty
     }
 
     if (stagedFiles.length === 0 && deletedFiles.length === 0) {
