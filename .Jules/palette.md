@@ -1,3 +1,7 @@
 ## 2024-05-15 - ARIA and Focus Polish for Review Modals
 **Learning:** Found an accessibility issue pattern where custom visual interactive elements like comment icons embedded in diff views lack both ARIA descriptions and `:focus-visible` styling, making them invisible and unexplained to keyboard/screen reader users.
 **Action:** When adding interactive icons to complex nested views (like a diff viewer), always pair ARIA labels with explicit `:focus-visible` styling that matches the `:hover` interaction to ensure full keyboard support.
+
+## 2024-05-16 - Semantic Interaction for Custom Accordions
+**Learning:** Discovered a pattern where custom div-based accordions (like the file diff headers) look clickable to sighted users but lack semantic meaning (`role="button"`), keyboard focusability (`tabindex`), state communication (`aria-expanded`), and keyboard event handlers. This makes them completely inaccessible to keyboard and screen reader users.
+**Action:** When implementing custom interactive containers (like accordions or expanders), always provide complete semantic interaction: add `role="button"`, `tabindex="0"`, dynamic `aria-expanded` attributes, and ensure they respond to both `Enter` and `Space` key presses, along with explicit `:focus-visible` styling.
