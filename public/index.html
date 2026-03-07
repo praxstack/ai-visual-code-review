@@ -120,8 +120,11 @@
             user-select: none;
         }
 
-        .file-header:hover {
+        .file-header:hover,
+        .file-header:focus-visible {
             background: #21262d;
+            outline: 2px solid #58a6ff;
+            outline-offset: -2px;
         }
 
         .file-path {
@@ -1207,7 +1210,12 @@
                     const fileDiv = document.createElement('div');
                     fileDiv.className = 'file-item';
                     fileDiv.innerHTML = `
-                        <div class="file-header" onclick="toggleFile('${file}', '${fileId}')">
+                        <div class="file-header"
+                             role="button"
+                             tabindex="0"
+                             aria-expanded="false"
+                             onclick="toggleFile('${file}', '${fileId}')"
+                             onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleFile('${file}', '${fileId}'); }">
                             <div class="file-path">
                                 <span class="expand-icon" id="icon-${fileId}">▶️</span>
                                 <span>${fileIcon}</span>
@@ -1262,18 +1270,27 @@
         async function toggleFile(file, fileId) {
             const diffDiv = document.getElementById(`diff-${fileId}`);
             const icon = document.getElementById(`icon-${fileId}`);
+            const header = diffDiv.previousElementSibling;
 
             if (diffDiv.classList.contains('active')) {
                 diffDiv.classList.remove('active');
                 icon.classList.remove('rotated');
+                header.setAttribute('aria-expanded', 'false');
                 return;
             }
 
             // Close all other diffs
-            document.querySelectorAll('.file-diff').forEach(d => d.classList.remove('active'));
+            document.querySelectorAll('.file-diff').forEach(d => {
+                d.classList.remove('active');
+                const h = d.previousElementSibling;
+                if (h && h.classList.contains('file-header')) {
+                    h.setAttribute('aria-expanded', 'false');
+                }
+            });
             document.querySelectorAll('.expand-icon').forEach(i => i.classList.remove('rotated'));
 
             icon.classList.add('rotated');
+            header.setAttribute('aria-expanded', 'true');
 
             if (!allDiffs[file]) {
                 try {
