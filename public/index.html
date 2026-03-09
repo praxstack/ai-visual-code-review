@@ -840,7 +840,7 @@
                 element.innerHTML = `
                     <div class="error-message">
                         <span>❌</span>
-                        <span>${message}</span>
+                        <span>${escapeHtml(message)}</span>
                         <button onclick="location.reload()" style="margin-left: 10px; padding: 4px 8px; background: #f85149; color: white; border: none; border-radius: 4px; cursor: pointer;">
                             🔄 Retry
                         </button>
@@ -1253,7 +1253,7 @@
             } catch (error) {
                 document.getElementById('fileList').innerHTML = `
                     <div class="error-message">
-                        Error loading files: ${error.message}
+                        Error loading files: ${escapeHtml(error.message)}
                     </div>
                 `;
             }
@@ -1284,7 +1284,7 @@
                     renderDiff(diffDiv, data.diff, file, data.parsedDiff);
                     updateFileStats(fileId, data.diff);
                 } catch (error) {
-                    diffDiv.innerHTML = `<div class="error-message">Error loading diff: ${error.message}</div>`;
+                    diffDiv.innerHTML = `<div class="error-message">Error loading diff: ${escapeHtml(error.message)}</div>`;
                 }
             } else {
                 renderDiff(diffDiv, allDiffs[file], file, allParsedDiffs[file]);
@@ -1550,7 +1550,7 @@
                 const container = document.querySelector('.container');
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'error-message';
-                errorDiv.innerHTML = `<strong>❌ Export Failed:</strong> ${error.message}`;
+                errorDiv.innerHTML = `<strong>❌ Export Failed:</strong> ${escapeHtml(error.message)}`;
                 container.insertBefore(errorDiv, container.firstChild);
 
                 setTimeout(() => {
@@ -1628,7 +1628,7 @@
                 const container = document.querySelector('.container');
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'error-message';
-                errorDiv.innerHTML = `<strong>❌ Individual Export Failed:</strong> ${error.message}`;
+                errorDiv.innerHTML = `<strong>❌ Individual Export Failed:</strong> ${escapeHtml(error.message)}`;
                 container.insertBefore(errorDiv, container.firstChild);
 
                 setTimeout(() => {
