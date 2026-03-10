@@ -840,7 +840,7 @@
                 element.innerHTML = `
                     <div class="error-message">
                         <span>❌</span>
-                        <span>${message}</span>
+                    <span>${escapeHtml(message)}</span>
                         <button onclick="location.reload()" style="margin-left: 10px; padding: 4px 8px; background: #f85149; color: white; border: none; border-radius: 4px; cursor: pointer;">
                             🔄 Retry
                         </button>
@@ -1103,7 +1103,7 @@
                 if (data.stats && data.stats.trim()) {
                     statsElement.innerHTML = `
                         <h3>📊 Change Summary <span style="font-size: 12px; color: #7d8590; font-weight: normal;">(Generated: ${data.generated ? new Date(data.generated).toLocaleTimeString() : 'now'})</span></h3>
-                        <pre>${data.stats}</pre>
+                        <pre>${escapeHtml(data.stats)}</pre>
                     `;
                 } else {
                     statsElement.innerHTML = `
@@ -1204,23 +1204,26 @@
                     // Add file to selected set by default
                     selectedFiles.add(file);
 
+                    const safeFile = escapeHtml(file);
+                    const safeFileName = escapeHtml(fileName);
+
                     const fileDiv = document.createElement('div');
                     fileDiv.className = 'file-item';
                     fileDiv.innerHTML = `
-                        <div class="file-header" onclick="toggleFile('${file}', '${fileId}')">
+                        <div class="file-header" data-file="${escapeHtml(file)}" onclick="toggleFile(this.getAttribute('data-file'), '${fileId}')">
                             <div class="file-path">
                                 <span class="expand-icon" id="icon-${fileId}">▶️</span>
-                                <span>${fileIcon}</span>
-                                <span>${file}</span>
+                                <span>${escapeHtml(fileIcon)}</span>
+                                <span>${safeFile}</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="event.stopPropagation();">
                                     <input
                                         type="checkbox"
                                         id="select-${fileId}"
-                                        data-filename="${file}"
+                                        data-filename="${escapeHtml(file)}"
                                         checked
-                                        onchange="toggleFileSelection('${file}', '${fileId}')"
+                                        onchange="toggleFileSelection(this.getAttribute('data-filename'), '${fileId}')"
                                         title="Include in AI review export"
                                         style="accent-color: #2ea043;"
                                     >
@@ -1228,9 +1231,10 @@
                                 </label>
                                 <button
                                     class="comment-btn"
-                                    onclick="event.stopPropagation(); showCommentModal('${file}', '${fileId}')"
+                                    data-file="${escapeHtml(file)}"
+                                    onclick="event.stopPropagation(); showCommentModal(this.getAttribute('data-file'), '${fileId}')"
                                     title="Add comment for this file"
-                                    aria-label="Add comment for ${file}"
+                                    aria-label="Add comment for ${escapeHtml(file)}"
                                 >
                                     <span id="comment-indicator-${fileId}" style="display: none;" aria-hidden="true">💬</span>
                                     <span aria-hidden="true">💭</span>
@@ -1238,13 +1242,13 @@
                                 <div class="file-stats" id="stats-${fileId}">
                                     <span>Click to load diff</span>
                                 </div>
-                                <span class="badge ${badgeClass}">${badgeText}</span>
+                                <span class="badge ${escapeHtml(badgeClass)}">${escapeHtml(badgeText)}</span>
                             </div>
                         </div>
                         <div class="file-diff" id="diff-${fileId}">
                             <div style="padding: 20px; text-align: center; color: #7d8590;">
                                 <div class="spinner" style="margin: 0 auto 12px;"></div>
-                                Loading diff for ${fileName}...
+                                Loading diff for ${safeFileName}...
                             </div>
                         </div>
                     `;
@@ -1397,7 +1401,7 @@
                 container.innerHTML = `
                     <div style="padding: 20px; text-align: center; color: #7d8590;">
                         <span style="font-size: 32px;">📄</span>
-                        <p>No changes detected in ${filename}</p>
+                        <p>No changes detected in ${escapeHtml(filename)}</p>
                     </div>
                 `;
                 return;
@@ -1422,11 +1426,11 @@
                     }
 
                     html += `
-                        <div class="diff-line-container ${className}" data-line-id="${lineId}" data-file="${filename}" data-old-line="${oldNum}" data-new-line="${newNum}">
+                        <div class="diff-line-container ${className}" data-line-id="${lineId}" data-file="${escapeHtml(filename)}" data-old-line="${oldNum}" data-new-line="${newNum}">
                             <div class="line-numbers">
                                 <span class="old-line-num">${oldNum || ''}</span>
                                 <span class="new-line-num">${newNum || ''}</span>
-                                <button class="add-comment-btn" aria-label="Add comment to line ${oldNum || newNum}" onclick="addLineComment('${lineId}', '${filename}', ${oldNum || newNum})" title="Add comment to this line">💬</button>
+                                <button class="add-comment-btn" data-file="${escapeHtml(filename)}" aria-label="Add comment to line ${oldNum || newNum}" onclick="addLineComment('${lineId}', this.getAttribute('data-file'), ${oldNum || newNum})" title="Add comment to this line">💬</button>
                             </div>
                             <div class="line-content">
                                 <code>${escapeHtml(line.content)}</code>
@@ -1640,9 +1644,12 @@
         }
 
         function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         // Keyboard shortcuts
