@@ -1207,20 +1207,21 @@
                     const fileDiv = document.createElement('div');
                     fileDiv.className = 'file-item';
                     fileDiv.innerHTML = `
-                        <div class="file-header" onclick="toggleFile('${file}', '${fileId}')">
+                        <div class="file-header" onclick="toggleFile(this.getAttribute('data-file'), this.getAttribute('data-file-id'))" data-file="${escapeHtml(file)}" data-file-id="${escapeHtml(fileId)}">
                             <div class="file-path">
-                                <span class="expand-icon" id="icon-${fileId}">▶️</span>
+                                <span class="expand-icon" id="icon-${escapeHtml(fileId)}">▶️</span>
                                 <span>${fileIcon}</span>
-                                <span>${file}</span>
+                                <span>${escapeHtml(file)}</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="event.stopPropagation();">
                                     <input
                                         type="checkbox"
-                                        id="select-${fileId}"
-                                        data-filename="${file}"
+                                        id="select-${escapeHtml(fileId)}"
+                                        data-filename="${escapeHtml(file)}"
+                                        data-file-id="${escapeHtml(fileId)}"
                                         checked
-                                        onchange="toggleFileSelection('${file}', '${fileId}')"
+                                        onchange="toggleFileSelection(this.getAttribute('data-filename'), this.getAttribute('data-file-id'))"
                                         title="Include in AI review export"
                                         style="accent-color: #2ea043;"
                                     >
@@ -1228,11 +1229,13 @@
                                 </label>
                                 <button
                                     class="comment-btn"
-                                    onclick="event.stopPropagation(); showCommentModal('${file}', '${fileId}')"
+                                    onclick="event.stopPropagation(); showCommentModal(this.getAttribute('data-file'), this.getAttribute('data-file-id'))"
+                                    data-file="${escapeHtml(file)}"
+                                    data-file-id="${escapeHtml(fileId)}"
                                     title="Add comment for this file"
-                                    aria-label="Add comment for ${file}"
+                                    aria-label="Add comment for ${escapeHtml(file)}"
                                 >
-                                    <span id="comment-indicator-${fileId}" style="display: none;" aria-hidden="true">💬</span>
+                                    <span id="comment-indicator-${escapeHtml(fileId)}" style="display: none;" aria-hidden="true">💬</span>
                                     <span aria-hidden="true">💭</span>
                                 </button>
                                 <div class="file-stats" id="stats-${fileId}">
@@ -1253,7 +1256,7 @@
             } catch (error) {
                 document.getElementById('fileList').innerHTML = `
                     <div class="error-message">
-                        Error loading files: ${error.message}
+                        Error loading files: ${escapeHtml(error.message)}
                     </div>
                 `;
             }
@@ -1284,7 +1287,7 @@
                     renderDiff(diffDiv, data.diff, file, data.parsedDiff);
                     updateFileStats(fileId, data.diff);
                 } catch (error) {
-                    diffDiv.innerHTML = `<div class="error-message">Error loading diff: ${error.message}</div>`;
+                    diffDiv.innerHTML = `<div class="error-message">Error loading diff: ${escapeHtml(error.message)}</div>`;
                 }
             } else {
                 renderDiff(diffDiv, allDiffs[file], file, allParsedDiffs[file]);
@@ -1426,7 +1429,7 @@
                             <div class="line-numbers">
                                 <span class="old-line-num">${oldNum || ''}</span>
                                 <span class="new-line-num">${newNum || ''}</span>
-                                <button class="add-comment-btn" aria-label="Add comment to line ${oldNum || newNum}" onclick="addLineComment('${lineId}', '${filename}', ${oldNum || newNum})" title="Add comment to this line">💬</button>
+                                <button class="add-comment-btn" aria-label="Add comment to line ${oldNum || newNum}" onclick="addLineComment(this.getAttribute('data-line-id'), this.getAttribute('data-file'), this.getAttribute('data-line-num'))" data-line-id="${escapeHtml(lineId)}" data-file="${escapeHtml(filename)}" data-line-num="${oldNum || newNum}" title="Add comment to this line">💬</button>
                             </div>
                             <div class="line-content">
                                 <code>${escapeHtml(line.content)}</code>
@@ -1550,7 +1553,7 @@
                 const container = document.querySelector('.container');
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'error-message';
-                errorDiv.innerHTML = `<strong>❌ Export Failed:</strong> ${error.message}`;
+                errorDiv.innerHTML = `<strong>❌ Export Failed:</strong> ${escapeHtml(error.message)}`;
                 container.insertBefore(errorDiv, container.firstChild);
 
                 setTimeout(() => {
@@ -1628,7 +1631,7 @@
                 const container = document.querySelector('.container');
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'error-message';
-                errorDiv.innerHTML = `<strong>❌ Individual Export Failed:</strong> ${error.message}`;
+                errorDiv.innerHTML = `<strong>❌ Individual Export Failed:</strong> ${escapeHtml(error.message)}`;
                 container.insertBefore(errorDiv, container.firstChild);
 
                 setTimeout(() => {
@@ -1640,9 +1643,13 @@
         }
 
         function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+            if (!text) return text;
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         // Keyboard shortcuts
