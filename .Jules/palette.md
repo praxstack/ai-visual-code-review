@@ -1,7 +1,6 @@
 ## 2024-05-15 - ARIA and Focus Polish for Review Modals
 **Learning:** Found an accessibility issue pattern where custom visual interactive elements like comment icons embedded in diff views lack both ARIA descriptions and `:focus-visible` styling, making them invisible and unexplained to keyboard/screen reader users.
 **Action:** When adding interactive icons to complex nested views (like a diff viewer), always pair ARIA labels with explicit `:focus-visible` styling that matches the `:hover` interaction to ensure full keyboard support.
-
-## 2024-05-16 - Semantic Interaction for Custom Accordions
-**Learning:** Discovered a pattern where custom div-based accordions (like the file diff headers) look clickable to sighted users but lack semantic meaning (`role="button"`), keyboard focusability (`tabindex`), state communication (`aria-expanded`), and keyboard event handlers. This makes them completely inaccessible to keyboard and screen reader users.
-**Action:** When implementing custom interactive containers (like accordions or expanders), always provide complete semantic interaction: add `role="button"`, `tabindex="0"`, dynamic `aria-expanded` attributes, and ensure they respond to both `Enter` and `Space` key presses, along with explicit `:focus-visible` styling.
+## 2026-03-10 - Keyboard Accessible Vanilla JS Accordions
+**Learning:** When making `div`-based custom accordions accessible, applying a `:focus-visible` outline helps keyboard users without showing outlines to mouse users. Additionally, an `onkeydown` handler for 'Enter' or 'Space' must call `event.preventDefault()` to stop the page from scrolling when the Space key is pressed. Managing `aria-expanded` and `aria-controls` states programmatically during JS expand/collapse functions ensures screen readers correctly announce the state.
+**Action:** Always include `event.preventDefault()` when mapping the 'Space' key to click actions on non-button custom elements. Ensure the state of `aria-expanded` strictly mirrors the visual expand/collapse state updated in the DOM event handlers.
