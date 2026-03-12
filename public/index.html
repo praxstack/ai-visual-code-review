@@ -984,55 +984,25 @@
             textarea.setSelectionRange(cursorPos + template.length, cursorPos + template.length);
         }
 
-        function saveComment() {
-            const textarea = document.getElementById('commentTextarea');
-            const comment = textarea.value.trim();
-
-            if (comment) {
-                fileComments[currentCommentFile] = comment;
-
-                // Update comment button to show it has a comment
-                const commentBtn = document.querySelector(`[onclick*="'${currentCommentFile}'"]`);
-                if (commentBtn) {
-                    commentBtn.classList.add('has-comment');
-                    const indicator = document.getElementById(`comment-indicator-${currentCommentFileId}`);
-                    if (indicator) {
-                        indicator.style.display = 'inline';
-                    }
-                }
-
-                // Add comment display to the file
-                showCommentInFile(currentCommentFile, currentCommentFileId, comment);
-            } else {
-                // Remove comment if empty
-                delete fileComments[currentCommentFile];
-                const commentBtn = document.querySelector(`[onclick*="'${currentCommentFile}'"]`);
-                if (commentBtn) {
-                    commentBtn.classList.remove('has-comment');
-                    const indicator = document.getElementById(`comment-indicator-${currentCommentFileId}`);
-                    if (indicator) {
-                        indicator.style.display = 'none';
-                    }
-                }
-                removeCommentFromFile(currentCommentFileId);
-            }
-
-            closeCommentModal();
-        }
 
         function showCommentInFile(file, fileId, comment) {
             // Remove existing comment display
             removeCommentFromFile(fileId);
 
             // Add comment display after file header
-            const fileItem = document.getElementById(`diff-${fileId}`).parentElement;
+            const diffElem = document.getElementById(`diff-${fileId}`);
+            if (!diffElem) return;
+
+            const fileItem = diffElem.parentElement;
             const commentDiv = document.createElement('div');
             commentDiv.id = `comment-display-${fileId}`;
             commentDiv.className = 'comment-display';
             commentDiv.innerHTML = `<strong>💭 Your Comment:</strong><br>${escapeHtml(comment)}`;
 
             const fileHeader = fileItem.querySelector('.file-header');
-            fileHeader.parentNode.insertBefore(commentDiv, fileHeader.nextSibling);
+            if (fileHeader) {
+                fileHeader.parentNode.insertBefore(commentDiv, fileHeader.nextSibling);
+            }
         }
 
         function removeCommentFromFile(fileId) {
@@ -1272,13 +1242,13 @@
                                     <span id="comment-indicator-${escapeHtml(fileId)}" style="display: none;" aria-hidden="true">💬</span>
                                     <span aria-hidden="true">💭</span>
                                 </button>
-                                <div class="file-stats" id="stats-${fileId}">
+                                <div class="file-stats" id="stats-${escapeHtml(fileId)}">
                                     <span>Click to load diff</span>
                                 </div>
                                 <span class="badge ${escapeHtml(badgeClass)}">${escapeHtml(badgeText)}</span>
                             </div>
                         </div>
-                        <div class="file-diff" id="diff-${fileId}">
+                        <div class="file-diff" id="diff-${escapeHtml(fileId)}">
                             <div style="padding: 20px; text-align: center; color: #7d8590;">
                                 <div class="spinner" style="margin: 0 auto 12px;"></div>
                                 Loading diff for ${safeFileName}...
@@ -1300,6 +1270,8 @@
             const diffDiv = document.getElementById(`diff-${fileId}`);
             const icon = document.getElementById(`icon-${fileId}`);
             const fileHeader = diffDiv.previousElementSibling;
+
+            if (!diffDiv || !icon) return;
 
             if (diffDiv.classList.contains('active')) {
                 diffDiv.classList.remove('active');
@@ -1387,7 +1359,8 @@
                     fileComments[currentCommentFile] = comment;
                     console.log(`💬 File comment added: ${currentCommentFile}: "${comment.substring(0, 50)}${comment.length > 50 ? '...' : ''}"`);
 
-                    const commentBtn = document.querySelector(`[onclick*="'${currentCommentFile}'"]`);
+                    // Use data attribute instead of string matching
+                    const commentBtn = document.querySelector(`.comment-btn[data-file="${CSS.escape(currentCommentFile)}"]`);
                     if (commentBtn) {
                         commentBtn.classList.add('has-comment');
                         const indicator = document.getElementById(`comment-indicator-${currentCommentFileId}`);
@@ -1397,7 +1370,7 @@
                 } else {
                     delete fileComments[currentCommentFile];
                     console.log(`❌ File comment removed: ${currentCommentFile}`);
-                    const commentBtn = document.querySelector(`[onclick*="'${currentCommentFile}'"]`);
+                    const commentBtn = document.querySelector(`.comment-btn[data-file="${CSS.escape(currentCommentFile)}"]`);
                     if (commentBtn) {
                         commentBtn.classList.remove('has-comment');
                         const indicator = document.getElementById(`comment-indicator-${currentCommentFileId}`);
@@ -1488,15 +1461,18 @@
             const removed = lines.filter(line => line.startsWith('-') && !line.startsWith('---')).length;
 
             const statsElement = document.getElementById(`stats-${fileId}`);
-            statsElement.innerHTML = `
-                <span style="color: #aff5b4;">+${added}</span>
-                <span style="color: #ffdcd7;">-${removed}</span>
-            `;
+            if (statsElement) {
+                statsElement.innerHTML = `
+                    <span style="color: #aff5b4;">+${added}</span>
+                    <span style="color: #ffdcd7;">-${removed}</span>
+                `;
+            }
         }
 
         // Toggle file selection for export
         function toggleFileSelection(file, fileId) {
             const checkbox = document.getElementById(`select-${fileId}`);
+            if (!checkbox) return;
             const fileItem = checkbox.closest('.file-item');
 
             if (checkbox.checked) {
