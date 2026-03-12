@@ -1138,6 +1138,8 @@
                 const fragment = document.createDocumentFragment();
 
                 // Enhanced file processing with better icons and metadata
+                // ⚡ Bolt: Batch DOM insertions using a DocumentFragment to prevent O(N) layout thrashing
+                const fragment = document.createDocumentFragment();
                 data.files.forEach((file, index) => {
                     const fileId = file.replace(/[^a-zA-Z0-9]/g, '_');
                     const fileExt = file.substring(file.lastIndexOf('.')).toLowerCase();
