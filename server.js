@@ -220,6 +220,9 @@ function validateExportRequest(body) {
 
     // Validate individual comments
     for (const [file, comment] of Object.entries(comments)) {
+      if (!DiffService.isValidFilePath(file)) {
+        return { valid: false, error: 'Invalid file path in comments' };
+      }
       if (typeof comment !== 'string' || comment.length > 10000) {
         return { valid: false, error: 'Comment too long (max 10,000 characters)' };
       }
@@ -247,7 +250,7 @@ function validateExportRequest(body) {
       return { valid: false, error: 'Too many excluded files (max 1000)' };
     }
 
-    if (!excludedFiles.every(f => typeof f === 'string' && f.length < 500)) {
+    if (!excludedFiles.every(f => typeof f === 'string' && f.length < 500 && DiffService.isValidFilePath(f))) {
       return { valid: false, error: 'Invalid excluded file entries' };
     }
   }

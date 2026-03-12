@@ -75,6 +75,9 @@ function validateExportRequest(body) {
     }
 
     for (const [file, comment] of Object.entries(comments)) {
+      if (file.includes('..') || file.startsWith('/') || file.includes('\\') || /[;&|`$(){}[\]<>'"]/.test(file)) {
+        return { valid: false, error: 'Invalid file path in comments' };
+      }
       if (typeof comment !== 'string' || comment.length > 10000) {
         return { valid: false, error: 'Comment too long (max 10,000 characters)' };
       }
@@ -102,7 +105,7 @@ function validateExportRequest(body) {
       return { valid: false, error: 'Too many excluded files (max 1000)' };
     }
 
-    if (!excludedFiles.every(f => typeof f === 'string' && f.length < 500)) {
+    if (!excludedFiles.every(f => typeof f === 'string' && f.length < 500 && !(f.includes('..') || f.startsWith('/') || f.includes('\\') || /[;&|`$(){}[\]<>'"]/.test(f)))) {
       return { valid: false, error: 'Invalid excluded file entries' };
     }
   }
