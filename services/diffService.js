@@ -133,7 +133,7 @@ class DiffService {
     }
 
     // Prevent dangerous characters that could be used for command injection
-    const dangerousChars = /[;&|`$(){}[\]<>]/;
+    const dangerousChars = /[;&|`$(){}[\]<>'"]/;
     if (dangerousChars.test(filePath)) {
       return false;
     }

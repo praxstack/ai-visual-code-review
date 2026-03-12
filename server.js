@@ -220,6 +220,9 @@ function validateExportRequest(body) {
 
     // Validate individual comments
     for (const [file, comment] of Object.entries(comments)) {
+      if (!DiffService.isValidFilePath(file)) {
+        return { valid: false, error: 'Invalid file path in comments' };
+      }
       if (typeof comment !== 'string' || comment.length > 10000) {
         return { valid: false, error: 'Comment too long (max 10,000 characters)' };
       }
@@ -247,7 +250,7 @@ function validateExportRequest(body) {
       return { valid: false, error: 'Too many excluded files (max 1000)' };
     }
 
-    if (!excludedFiles.every(f => typeof f === 'string' && f.length < 500)) {
+    if (!excludedFiles.every(f => typeof f === 'string' && f.length < 500 && DiffService.isValidFilePath(f))) {
       return { valid: false, error: 'Invalid excluded file entries' };
     }
   }
@@ -330,7 +333,12 @@ app.get('/api/summary', handleAsyncRoute(async (req, res) => {
 app.get('/api/staged-files', handleAsyncRoute(async (req, res) => {
   try {
     const output = await GitService.execute('diff-cached-names');
-    const files = output.trim() ? output.trim().split('\n').filter(f => f.length > 0) : [];
+    const rawFiles = output.trim() ? output.trim().split('\n').filter(f => f.length > 0) : [];
+    const files = rawFiles.filter(f => DiffService.isValidFilePath(f));
+
+    if (rawFiles.length > files.length) {
+      console.warn(`Filtered out ${rawFiles.length - files.length} staged files due to invalid/suspicious file paths.`);
+    }
 
     // Get file statuses to determine if files are deleted
     let fileStatuses = {};
