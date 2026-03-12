@@ -133,6 +133,12 @@
             background: #21262d;
         }
 
+        .file-header:focus-visible {
+            outline: 2px solid #58a6ff;
+            outline-offset: -2px;
+            background: #21262d;
+        }
+
         .file-path {
             display: flex;
             align-items: center;
@@ -1275,6 +1281,13 @@
                         Error loading files: ${escapeHtml(error.message)}
                     </div>
                 `;
+            }
+        }
+
+        function handleFileHeaderKeydown(event, file, fileId) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggleFile(file, fileId);
             }
         }
 
