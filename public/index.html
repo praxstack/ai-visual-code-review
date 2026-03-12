@@ -978,55 +978,25 @@
             textarea.setSelectionRange(cursorPos + template.length, cursorPos + template.length);
         }
 
-        function saveComment() {
-            const textarea = document.getElementById('commentTextarea');
-            const comment = textarea.value.trim();
-
-            if (comment) {
-                fileComments[currentCommentFile] = comment;
-
-                // Update comment button to show it has a comment
-                const commentBtn = document.querySelector(`[onclick*="'${currentCommentFile}'"]`);
-                if (commentBtn) {
-                    commentBtn.classList.add('has-comment');
-                    const indicator = document.getElementById(`comment-indicator-${currentCommentFileId}`);
-                    if (indicator) {
-                        indicator.style.display = 'inline';
-                    }
-                }
-
-                // Add comment display to the file
-                showCommentInFile(currentCommentFile, currentCommentFileId, comment);
-            } else {
-                // Remove comment if empty
-                delete fileComments[currentCommentFile];
-                const commentBtn = document.querySelector(`[onclick*="'${currentCommentFile}'"]`);
-                if (commentBtn) {
-                    commentBtn.classList.remove('has-comment');
-                    const indicator = document.getElementById(`comment-indicator-${currentCommentFileId}`);
-                    if (indicator) {
-                        indicator.style.display = 'none';
-                    }
-                }
-                removeCommentFromFile(currentCommentFileId);
-            }
-
-            closeCommentModal();
-        }
 
         function showCommentInFile(file, fileId, comment) {
             // Remove existing comment display
             removeCommentFromFile(fileId);
 
             // Add comment display after file header
-            const fileItem = document.getElementById(`diff-${fileId}`).parentElement;
+            const diffElem = document.getElementById(`diff-${fileId}`);
+            if (!diffElem) return;
+
+            const fileItem = diffElem.parentElement;
             const commentDiv = document.createElement('div');
             commentDiv.id = `comment-display-${fileId}`;
             commentDiv.className = 'comment-display';
             commentDiv.innerHTML = `<strong>💭 Your Comment:</strong><br>${escapeHtml(comment)}`;
 
             const fileHeader = fileItem.querySelector('.file-header');
-            fileHeader.parentNode.insertBefore(commentDiv, fileHeader.nextSibling);
+            if (fileHeader) {
+                fileHeader.parentNode.insertBefore(commentDiv, fileHeader.nextSibling);
+            }
         }
 
         function removeCommentFromFile(fileId) {
@@ -1207,20 +1177,24 @@
                     const fileDiv = document.createElement('div');
                     fileDiv.className = 'file-item';
                     fileDiv.innerHTML = `
-                        <div class="file-header" onclick="toggleFile('${file}', '${fileId}')">
+                        <div class="file-header"
+                             data-file="${escapeHtml(file)}"
+                             data-fileid="${escapeHtml(fileId)}"
+                             onclick="toggleFile(this.dataset.file, this.dataset.fileid)">
                             <div class="file-path">
-                                <span class="expand-icon" id="icon-${fileId}">▶️</span>
+                                <span class="expand-icon" id="icon-${escapeHtml(fileId)}">▶️</span>
                                 <span>${fileIcon}</span>
-                                <span>${file}</span>
+                                <span>${escapeHtml(file)}</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="event.stopPropagation();">
                                     <input
                                         type="checkbox"
-                                        id="select-${fileId}"
-                                        data-filename="${file}"
+                                        id="select-${escapeHtml(fileId)}"
+                                        data-filename="${escapeHtml(file)}"
+                                        data-fileid="${escapeHtml(fileId)}"
                                         checked
-                                        onchange="toggleFileSelection('${file}', '${fileId}')"
+                                        onchange="toggleFileSelection(this.dataset.filename, this.dataset.fileid)"
                                         title="Include in AI review export"
                                         style="accent-color: #2ea043;"
                                     >
@@ -1228,20 +1202,22 @@
                                 </label>
                                 <button
                                     class="comment-btn"
-                                    onclick="event.stopPropagation(); showCommentModal('${file}', '${fileId}')"
+                                    data-file="${escapeHtml(file)}"
+                                    data-fileid="${escapeHtml(fileId)}"
+                                    onclick="event.stopPropagation(); showCommentModal(this.dataset.file, this.dataset.fileid)"
                                     title="Add comment for this file"
-                                    aria-label="Add comment for ${file}"
+                                    aria-label="Add comment for ${escapeHtml(file)}"
                                 >
-                                    <span id="comment-indicator-${fileId}" style="display: none;" aria-hidden="true">💬</span>
+                                    <span id="comment-indicator-${escapeHtml(fileId)}" style="display: none;" aria-hidden="true">💬</span>
                                     <span aria-hidden="true">💭</span>
                                 </button>
-                                <div class="file-stats" id="stats-${fileId}">
+                                <div class="file-stats" id="stats-${escapeHtml(fileId)}">
                                     <span>Click to load diff</span>
                                 </div>
                                 <span class="badge ${badgeClass}">${badgeText}</span>
                             </div>
                         </div>
-                        <div class="file-diff" id="diff-${fileId}">
+                        <div class="file-diff" id="diff-${escapeHtml(fileId)}">
                             <div style="padding: 20px; text-align: center; color: #7d8590;">
                                 <div class="spinner" style="margin: 0 auto 12px;"></div>
                                 Loading diff for ${fileName}...
@@ -1262,6 +1238,8 @@
         async function toggleFile(file, fileId) {
             const diffDiv = document.getElementById(`diff-${fileId}`);
             const icon = document.getElementById(`icon-${fileId}`);
+
+            if (!diffDiv || !icon) return;
 
             if (diffDiv.classList.contains('active')) {
                 diffDiv.classList.remove('active');
@@ -1346,7 +1324,8 @@
                     fileComments[currentCommentFile] = comment;
                     console.log(`💬 File comment added: ${currentCommentFile}: "${comment.substring(0, 50)}${comment.length > 50 ? '...' : ''}"`);
 
-                    const commentBtn = document.querySelector(`[onclick*="'${currentCommentFile}'"]`);
+                    // Use data attribute instead of string matching
+                    const commentBtn = document.querySelector(`.comment-btn[data-file="${CSS.escape(currentCommentFile)}"]`);
                     if (commentBtn) {
                         commentBtn.classList.add('has-comment');
                         const indicator = document.getElementById(`comment-indicator-${currentCommentFileId}`);
@@ -1356,7 +1335,7 @@
                 } else {
                     delete fileComments[currentCommentFile];
                     console.log(`❌ File comment removed: ${currentCommentFile}`);
-                    const commentBtn = document.querySelector(`[onclick*="'${currentCommentFile}'"]`);
+                    const commentBtn = document.querySelector(`.comment-btn[data-file="${CSS.escape(currentCommentFile)}"]`);
                     if (commentBtn) {
                         commentBtn.classList.remove('has-comment');
                         const indicator = document.getElementById(`comment-indicator-${currentCommentFileId}`);
@@ -1426,7 +1405,13 @@
                             <div class="line-numbers">
                                 <span class="old-line-num">${oldNum || ''}</span>
                                 <span class="new-line-num">${newNum || ''}</span>
-                                <button class="add-comment-btn" aria-label="Add comment to line ${oldNum || newNum}" onclick="addLineComment('${lineId}', '${filename}', ${oldNum || newNum})" title="Add comment to this line">💬</button>
+                                <button class="add-comment-btn"
+                                        aria-label="Add comment to line ${oldNum || newNum}"
+                                        data-lineid="${escapeHtml(lineId)}"
+                                        data-filename="${escapeHtml(filename)}"
+                                        data-linenum="${oldNum || newNum}"
+                                        onclick="addLineComment(this.dataset.lineid, this.dataset.filename, parseInt(this.dataset.linenum))"
+                                        title="Add comment to this line">💬</button>
                             </div>
                             <div class="line-content">
                                 <code>${escapeHtml(line.content)}</code>
@@ -1446,15 +1431,18 @@
             const removed = lines.filter(line => line.startsWith('-') && !line.startsWith('---')).length;
 
             const statsElement = document.getElementById(`stats-${fileId}`);
-            statsElement.innerHTML = `
-                <span style="color: #aff5b4;">+${added}</span>
-                <span style="color: #ffdcd7;">-${removed}</span>
-            `;
+            if (statsElement) {
+                statsElement.innerHTML = `
+                    <span style="color: #aff5b4;">+${added}</span>
+                    <span style="color: #ffdcd7;">-${removed}</span>
+                `;
+            }
         }
 
         // Toggle file selection for export
         function toggleFileSelection(file, fileId) {
             const checkbox = document.getElementById(`select-${fileId}`);
+            if (!checkbox) return;
             const fileItem = checkbox.closest('.file-item');
 
             if (checkbox.checked) {
@@ -1640,9 +1628,15 @@
         }
 
         function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+            if (text === null || text === undefined) return '';
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
         }
 
         // Keyboard shortcuts
