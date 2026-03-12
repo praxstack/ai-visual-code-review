@@ -1264,6 +1264,7 @@
                 // Append all file items to the container in a single operation
                 container.appendChild(fragment);
             } catch (error) {
+                // SECURITY: escapeHtml prevents XSS if error message contains malicious input
                 document.getElementById('fileList').innerHTML = `
                     <div class="error-message">
                         Error loading files: ${escapeHtml(error.message)}
