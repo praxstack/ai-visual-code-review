@@ -281,26 +281,27 @@ app.get('/api/health', handleAsyncRoute(async (req, res) => {
   let stagedCount = 0;
   let unstagedCount = 0;
 
-  const [stagedResult, unstagedResult] = await Promise.allSettled([
+  // ⚡ BOLT: parallelize independent Git operations to reduce process-spawning overhead
+  const [stagedFilesResult, unstagedFilesResult] = await Promise.allSettled([
     GitService.execute('diff-cached-names'),
     GitService.execute('status-porcelain')
   ]);
 
-  if (stagedResult.status === 'fulfilled') {
-    const stagedFiles = stagedResult.value;
+  if (stagedFilesResult.status === 'fulfilled') {
+    const stagedFiles = stagedFilesResult.value;
     stagedCount = stagedFiles.trim() ? stagedFiles.trim().split('\n').filter(f => f.length > 0).length : 0;
   } else {
-    console.warn('Failed to get staged files count:', stagedResult.reason.message);
+    console.warn('Failed to get staged files count:', stagedFilesResult.reason.message);
   }
 
-  if (unstagedResult.status === 'fulfilled') {
-    const unstagedFiles = unstagedResult.value;
+  if (unstagedFilesResult.status === 'fulfilled') {
+    const unstagedFiles = unstagedFilesResult.value;
     const unstagedLines = unstagedFiles.trim().split('\n').filter(line =>
       line.length > 0 && (line.startsWith(' M') || line.startsWith('??'))
     );
     unstagedCount = unstagedLines.length;
   } else {
-    console.warn('Failed to get unstaged files count:', unstagedResult.reason.message);
+    console.warn('Failed to get unstaged files count:', unstagedFilesResult.reason.message);
   }
 
   const totalChanges = stagedCount + unstagedCount;
@@ -334,23 +335,24 @@ app.get('/api/summary', handleAsyncRoute(async (req, res) => {
 
 app.get('/api/staged-files', handleAsyncRoute(async (req, res) => {
   try {
-    const [namesResult, statusResult, porcelainResult] = await Promise.allSettled([
+    // ⚡ BOLT: parallelize independent Git operations to reduce process-spawning overhead
+    const [outputResult, statusOutputResult, deletedOutputResult] = await Promise.allSettled([
       GitService.execute('diff-cached-names'),
       GitService.execute('diff-cached', ['--name-status']),
       GitService.execute('status-porcelain')
     ]);
 
-    if (namesResult.status === 'rejected') {
-      throw namesResult.reason;
+    if (outputResult.status === 'rejected') {
+      throw outputResult.reason;
     }
 
-    const output = namesResult.value;
+    const output = outputResult.value;
     const files = output.trim() ? output.trim().split('\n').filter(f => f.length > 0) : [];
 
     // Get file statuses to determine if files are deleted
     let fileStatuses = {};
-    if (statusResult.status === 'fulfilled') {
-      const statusOutput = statusResult.value;
+    if (statusOutputResult.status === 'fulfilled') {
+      const statusOutput = statusOutputResult.value;
       const statusLines = statusOutput.trim().split('\n').filter(line => line.length > 0);
       statusLines.forEach(line => {
         const [status, filename] = line.split('\t');
@@ -358,17 +360,17 @@ app.get('/api/staged-files', handleAsyncRoute(async (req, res) => {
           fileStatuses[filename] = status;
         }
       });
-    }
+    } // Ignore error, fileStatuses will remain empty
 
     // Check for unstaged deleted files
     let deletedFiles = [];
-    if (porcelainResult.status === 'fulfilled') {
-      const deletedOutput = porcelainResult.value;
+    if (deletedOutputResult.status === 'fulfilled') {
+      const deletedOutput = deletedOutputResult.value;
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && (line.startsWith(' D') || line.startsWith('AD'))
       );
       deletedFiles = deletedLines.map(line => line.substring(line.startsWith('AD') ? 3 : 3));
-    }
+    } // Ignore error, deletedFiles will remain empty
 
     res.json({
       files,
@@ -462,19 +464,27 @@ function cacheMiddleware(ttlSeconds = 30) {
     const originalJson = res.json;
     res.json = function (data) {
       if (res.statusCode === 200) {
+        // ⚡ Bolt Optimization: Delete before set to guarantee chronological order for O(K) eviction
+        requestCache.delete(key);
         requestCache.set(key, {
           data,
           timestamp: Date.now()
         });
 
-        // Clean old cache entries periodically
+        // Clean old cache entries periodically using setImmediate to avoid blocking the response
         if (requestCache.size > 100) {
-          const now = Date.now();
-          for (const [k, v] of requestCache.entries()) {
-            if (now - v.timestamp > 300000) { // 5 minutes
-              requestCache.delete(k);
+          // ⚡ Bolt Optimization: Run cleanup asynchronously to avoid blocking the main thread
+          setImmediate(() => {
+            const now = Date.now();
+            for (const [k, v] of requestCache.entries()) {
+              if (now - v.timestamp > 300000) { // 5 minutes
+                requestCache.delete(k);
+              } else {
+                // ⚡ Bolt Optimization: Break early because Map maintains insertion order
+                break;
+              }
             }
-          }
+          });
         }
       }
       return originalJson.call(this, data);
@@ -547,27 +557,26 @@ app.post('/api/export-for-ai', exportRateLimit, handleAsyncRoute(async (req, res
   console.log('🔍 Line comments:', Object.keys(lineComments).length);
 
   try {
-    // Get all staged files and deleted files with async operation concurrently
-    const [stagedResult, porcelainResult] = await Promise.allSettled([
+    // ⚡ BOLT: parallelize independent Git operations to reduce process-spawning overhead
+    const [stagedFilesResult, deletedOutputResult] = await Promise.allSettled([
       GitService.getStagedFiles(),
       GitService.execute('status-porcelain')
     ]);
 
-    if (stagedResult.status === 'rejected') {
-      throw stagedResult.reason;
+    if (stagedFilesResult.status === 'rejected') {
+      throw stagedFilesResult.reason;
     }
-
-    const stagedFiles = stagedResult.value;
+    const stagedFiles = stagedFilesResult.value;
 
     // Check for unstaged deleted files
     let deletedFiles = [];
-    if (porcelainResult.status === 'fulfilled') {
-      const deletedOutput = porcelainResult.value;
+    if (deletedOutputResult.status === 'fulfilled') {
+      const deletedOutput = deletedOutputResult.value;
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && line.startsWith(' D')
       );
       deletedFiles = deletedLines.map(line => line.substring(3));
-    }
+    } // Ignore error, deletedFiles will remain empty
 
     console.log('📁 All staged files:', stagedFiles.length);
     if (deletedFiles.length > 0) {
@@ -651,29 +660,28 @@ app.post('/api/export-individual-reviews', exportRateLimit, handleAsyncRoute(asy
   console.log('💬 File comments:', Object.keys(comments).length);
 
   try {
-    // Get all staged files and deleted files concurrently
-    const [namesResult, porcelainResult] = await Promise.allSettled([
+    // ⚡ BOLT: parallelize independent Git operations to reduce process-spawning overhead
+    const [stagedOutputResult, deletedOutputResult] = await Promise.allSettled([
       GitService.execute('diff-cached-names'),
       GitService.execute('status-porcelain')
     ]);
 
-    if (namesResult.status === 'rejected') {
-      throw namesResult.reason;
+    if (stagedOutputResult.status === 'rejected') {
+      throw stagedOutputResult.reason;
     }
-
-    const stagedOutput = namesResult.value;
+    const stagedOutput = stagedOutputResult.value;
     const stagedFiles = stagedOutput.trim() ?
       stagedOutput.trim().split('\n').filter(f => f.length > 0) : [];
 
     // Check for unstaged deleted files
     let deletedFiles = [];
-    if (porcelainResult.status === 'fulfilled') {
-      const deletedOutput = porcelainResult.value;
+    if (deletedOutputResult.status === 'fulfilled') {
+      const deletedOutput = deletedOutputResult.value;
       const deletedLines = deletedOutput.trim().split('\n').filter(line =>
         line.length > 0 && line.startsWith(' D')
       );
       deletedFiles = deletedLines.map(line => line.substring(3));
-    }
+    } // Ignore error, deletedFiles will remain empty
 
     if (stagedFiles.length === 0 && deletedFiles.length === 0) {
       return res.status(400).json({
