@@ -1,7 +1,6 @@
 ## 2024-05-15 - ARIA and Focus Polish for Review Modals
 **Learning:** Found an accessibility issue pattern where custom visual interactive elements like comment icons embedded in diff views lack both ARIA descriptions and `:focus-visible` styling, making them invisible and unexplained to keyboard/screen reader users.
 **Action:** When adding interactive icons to complex nested views (like a diff viewer), always pair ARIA labels with explicit `:focus-visible` styling that matches the `:hover` interaction to ensure full keyboard support.
-
-## 2024-05-16 - Full Accessibility for Div-Based Accordion Headers
-**Learning:** Discovered that custom div-based interactive elements used for accordion behaviors (e.g., file headers to show diffs) often lack keyboard interactivity out-of-the-box. When building such headers, screen reader and keyboard-only users will miss the content entirely without deliberate enhancements.
-**Action:** Always implement explicit ARIA attributes (`role="button"`, `tabindex="0"`, `aria-expanded`), add `:focus-visible` styling matching `:hover`, and ensure `onkeydown` supports both 'Enter' and 'Space' actions.
+## 2026-03-10 - Keyboard Accessible Vanilla JS Accordions
+**Learning:** When making `div`-based custom accordions accessible, applying a `:focus-visible` outline helps keyboard users without showing outlines to mouse users. Additionally, an `onkeydown` handler for 'Enter' or 'Space' must call `event.preventDefault()` to stop the page from scrolling when the Space key is pressed. Managing `aria-expanded` and `aria-controls` states programmatically during JS expand/collapse functions ensures screen readers correctly announce the state.
+**Action:** Always include `event.preventDefault()` when mapping the 'Space' key to click actions on non-button custom elements. Ensure the state of `aria-expanded` strictly mirrors the visual expand/collapse state updated in the DOM event handlers.
