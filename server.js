@@ -451,19 +451,26 @@ function cacheMiddleware(ttlSeconds = 30) {
     const originalJson = res.json;
     res.json = function (data) {
       if (res.statusCode === 200) {
+        // Ensure the key is moved to the end of the Map to maintain insertion order by timestamp
+        requestCache.delete(key);
         requestCache.set(key, {
           data,
           timestamp: Date.now()
         });
 
-        // Clean old cache entries periodically
+        // Clean old cache entries periodically using setImmediate to avoid blocking the response
         if (requestCache.size > 100) {
-          const now = Date.now();
-          for (const [k, v] of requestCache.entries()) {
-            if (now - v.timestamp > 300000) { // 5 minutes
-              requestCache.delete(k);
+          setImmediate(() => {
+            const now = Date.now();
+            for (const [k, v] of requestCache.entries()) {
+              if (now - v.timestamp > 300000) { // 5 minutes
+                requestCache.delete(k);
+              } else {
+                // Since Map maintains insertion order, we can stop at the first non-expired entry
+                break;
+              }
             }
-          }
+          });
         }
       }
       return originalJson.call(this, data);
