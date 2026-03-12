@@ -451,6 +451,8 @@ function cacheMiddleware(ttlSeconds = 30) {
     const originalJson = res.json;
     res.json = function (data) {
       if (res.statusCode === 200) {
+        // ⚡ Bolt Optimization: Delete before set to guarantee chronological order for O(K) eviction
+        requestCache.delete(key);
         requestCache.set(key, {
           data,
           timestamp: Date.now()
@@ -458,12 +460,18 @@ function cacheMiddleware(ttlSeconds = 30) {
 
         // Clean old cache entries periodically
         if (requestCache.size > 100) {
-          const now = Date.now();
-          for (const [k, v] of requestCache.entries()) {
-            if (now - v.timestamp > 300000) { // 5 minutes
-              requestCache.delete(k);
+          // ⚡ Bolt Optimization: Run cleanup asynchronously to avoid blocking the main thread
+          setImmediate(() => {
+            const now = Date.now();
+            for (const [k, v] of requestCache.entries()) {
+              if (now - v.timestamp > 300000) { // 5 minutes
+                requestCache.delete(k);
+              } else {
+                // ⚡ Bolt Optimization: Break early because Map maintains insertion order
+                break;
+              }
             }
-          }
+          });
         }
       }
       return originalJson.call(this, data);
