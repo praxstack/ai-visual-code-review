@@ -471,7 +471,7 @@ function cacheMiddleware(ttlSeconds = 30) {
           timestamp: Date.now()
         });
 
-        // Clean old cache entries periodically
+        // Clean old cache entries periodically using setImmediate to avoid blocking the response
         if (requestCache.size > 100) {
           // ⚡ Bolt Optimization: Run cleanup asynchronously to avoid blocking the main thread
           setImmediate(() => {
