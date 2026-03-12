@@ -718,7 +718,6 @@ app.get('/', (req, res) => {
     res.send(`
   < h1 > AI Visual Code Review</h1 >
       <p>Server is running but interface files are missing.</p>
-      <p>Current directory: ${process.cwd()}</p>
       <p>Please ensure the public/index.html file exists.</p>
 `);
   }
