@@ -1216,6 +1216,13 @@
                     const fileDiv = document.createElement('div');
                     fileDiv.className = 'file-item';
                     fileDiv.innerHTML = `
+                        <div class="file-header"
+                             role="button"
+                             tabindex="0"
+                             aria-expanded="false"
+                             aria-controls="diff-${fileId}"
+                             onclick="toggleFile('${file}', '${fileId}')"
+                             onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleFile('${file}', '${fileId}'); }">
                         <div class="file-header" data-file="${escapeHtml(file)}" onclick="toggleFile(this.getAttribute('data-file'), '${fileId}')">
                             <div class="file-path">
                                 <span class="expand-icon" id="icon-${fileId}">▶️</span>
