@@ -9,11 +9,11 @@ const DiffService = require('./services/diffService');
 const GitStatusParser = require('./services/gitStatusParser');
 const ReviewGenerator = require('./services/ReviewGenerator');
 const GitService = require('./services/GitService');
+const { resolveHost, browseUrl } = require('./services/serverUrl');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
-// Bind to loopback by default; the server is unauthenticated. Set HOST=0.0.0.0 (e.g. in Docker) to expose it.
-const HOST = process.env.HOST || '127.0.0.1';
+const HOST = resolveHost(process.env);
 
 // Configuration
 const CONFIG = {
@@ -778,9 +778,10 @@ app.use('*', (req, res) => {
 // Start server only if not in test mode
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, HOST, () => {
+    const url = browseUrl(HOST, PORT);
     console.log('🔍 AI Visual Code Review Server');
     console.log('===============================');
-    console.log(`🌐 Server running at: http://localhost:${PORT}`);
+    console.log(`🌐 Server running at: ${url}`);
     console.log(`📁 Working directory: ${process.cwd()}`);
     console.log(`⏰ Started at: ${new Date().toLocaleString()}`);
     console.log('');
@@ -793,7 +794,7 @@ if (process.env.NODE_ENV !== 'test') {
     console.log('');
     console.log('💡 Usage:');
     console.log('   1. Stage changes: git add .');
-    console.log('   2. Open: http://localhost:3002');
+    console.log(`   2. Open: ${url}`);
     console.log('   3. Review and export for AI analysis');
     console.log('');
   });
