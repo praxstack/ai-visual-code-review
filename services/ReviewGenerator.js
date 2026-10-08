@@ -176,8 +176,7 @@ class ReviewGenerator {
         if (comments && comments[file]) {
           fileContent += `## 💭 Review Comment\n\n${comments[file]}\n\n`;
         }
-        const fileLineComments = Object.entries(lineComments || {})
-          .filter(([lineId]) => lineId.includes(file.replace(/[^a-zA-Z0-9]/g, '_')));
+        const fileLineComments = this.getLineCommentsForFile(file, lineComments);
         if (fileLineComments.length > 0) {
           fileContent += '## 🔍 Line Comments\n\n';
           fileLineComments.forEach(([lineId, comment]) => {
@@ -238,6 +237,20 @@ class ReviewGenerator {
   }
 
   /**
+   * Line comments that belong to exactly this file. The client builds lineIds as
+   * `${file.replace(/[^a-zA-Z0-9]/g, '_')}_${chunkIndex}_${lineIndex}`, so match the whole
+   * id: a substring test would also give `data.js`'s comments to `a.js`.
+   * @param {string} file
+   * @param {Object} lineComments - lineId -> comment
+   * @returns {Array<[string, string]>}
+   */
+  static getLineCommentsForFile(file, lineComments) {
+    const prefix = file.replace(/[^a-zA-Z0-9]/g, '_');
+    const idPattern = new RegExp(`^${prefix}_\\d+_\\d+$`);
+    return Object.entries(lineComments || {}).filter(([lineId]) => idPattern.test(lineId));
+  }
+
+  /**
    * Generate content for a single file review
    */
   static async generateFileContent(file, fileComment, lineComments) {
@@ -272,8 +285,7 @@ class ReviewGenerator {
     }
 
     // Line Comments
-    const fileLineComments = Object.entries(lineComments || {})
-      .filter(([lineId]) => lineId.includes(file.replace(/[^a-zA-Z0-9]/g, '_')));
+    const fileLineComments = this.getLineCommentsForFile(file, lineComments);
 
     if (fileLineComments.length > 0) {
       content += '## 🔍 Line Comments\n\n';
