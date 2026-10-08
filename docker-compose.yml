@@ -7,10 +7,11 @@ services:
       dockerfile: Dockerfile
     container_name: ai-visual-code-review
     ports:
-      - "3002:3002"
+      - "127.0.0.1:3002:3002"
     environment:
       - NODE_ENV=production
       - PORT=3002
+      - HOST=0.0.0.0
     volumes:
       # Mount current directory for reviewing code
       - .:/workspace:ro
@@ -31,10 +32,11 @@ services:
       target: builder
     container_name: ai-visual-code-review-dev
     ports:
-      - "3002:3002"
+      - "127.0.0.1:3002:3002"
     environment:
       - NODE_ENV=development
       - PORT=3002
+      - HOST=0.0.0.0
     volumes:
       - .:/app
       - /app/node_modules

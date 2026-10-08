@@ -12,6 +12,8 @@ const GitService = require('./services/GitService');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+// Bind to loopback by default; the server is unauthenticated. Set HOST=0.0.0.0 (e.g. in Docker) to expose it.
+const HOST = process.env.HOST || '127.0.0.1';
 
 // Configuration
 const CONFIG = {
@@ -775,7 +777,7 @@ app.use('*', (req, res) => {
 
 // Start server only if not in test mode
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
+  app.listen(PORT, HOST, () => {
     console.log('🔍 AI Visual Code Review Server');
     console.log('===============================');
     console.log(`🌐 Server running at: http://localhost:${PORT}`);
@@ -802,4 +804,5 @@ app.resetRateLimit = () => {
   rateLimitStore.clear();
 };
 
+app.HOST = HOST;
 module.exports = app;
