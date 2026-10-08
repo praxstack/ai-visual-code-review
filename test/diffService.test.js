@@ -163,5 +163,12 @@ describe('DiffService', () => {
         expect(DiffService.isValidFilePath(path)).toBe(false);
       });
     });
+
+    test('should reject git magic pathspecs [AVCR-001]', () => {
+      [':/', ':!src/index.js', ':^src/index.js', ':(exclude)src/index.js', ':(glob)**', ':'].forEach(p => {
+        expect(DiffService.isValidFilePath(p)).toBe(false);
+      });
+      expect(DiffService.isValidFilePath('src/a:b.js')).toBe(true);
+    });
   });
 });

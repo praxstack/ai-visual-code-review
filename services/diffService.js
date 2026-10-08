@@ -132,6 +132,11 @@ class DiffService {
       return false;
     }
 
+    // A leading ":" is git pathspec magic (":/" = whole repo, ":(exclude)x", ":!x")
+    if (filePath.startsWith(':')) {
+      return false;
+    }
+
     // Prevent dangerous characters that could be used for command injection
     const dangerousChars = /[;&|`$(){}[\]<>'"]/;
     if (dangerousChars.test(filePath)) {
