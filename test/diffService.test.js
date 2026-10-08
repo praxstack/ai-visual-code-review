@@ -153,7 +153,6 @@ describe('DiffService', () => {
         'file;rm -rf /',
         'file|cat /etc/passwd',
         'file`whoami`',
-        'file$(whoami)',
         'file&&rm -rf /',
         'file||echo hack',
         'file<script>alert(1)</script>'
@@ -161,6 +160,12 @@ describe('DiffService', () => {
 
       dangerousPaths.forEach(path => {
         expect(DiffService.isValidFilePath(path)).toBe(false);
+      });
+    });
+
+    test('should accept bracket, paren, brace and dollar paths [review: MINOR-2]', () => {
+      ['app/[id]/page.tsx', 'app/(marketing)/page.tsx', 'x$y{z}.txt', 'file$(whoami)'].forEach(p => {
+        expect(DiffService.isValidFilePath(p)).toBe(true);
       });
     });
 

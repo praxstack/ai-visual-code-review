@@ -137,8 +137,10 @@ class DiffService {
       return false;
     }
 
-    // Prevent dangerous characters that could be used for command injection
-    const dangerousChars = /[;&|`$(){}[\]<>'"]/;
+    // Reject characters with no legitimate use in a reviewed path. Git is run via execFile
+    // (no shell) with --literal-pathspecs, so [ ] ( ) { } $ are inert and are allowed:
+    // Next.js routes such as app/[id]/page.tsx or app/(group)/page.tsx must stay reviewable.
+    const dangerousChars = /[;&|`<>'"]/;
     if (dangerousChars.test(filePath)) {
       return false;
     }
