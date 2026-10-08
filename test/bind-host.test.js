@@ -20,4 +20,15 @@ describe('server bind address [AVCR-005]', () => {
     expect(c).not.toMatch(/- "3002:3002"/);
     expect(c).toMatch(/127\.0\.0\.1:3002:3002/);
   });
+  // The server binds IPv4 only; "localhost" can resolve to ::1 first in node:18-alpine.
+  test('Docker healthchecks probe 127.0.0.1, not localhost [review: MINOR-3]', () => {
+    for (const f of ['Dockerfile', 'docker-compose.yml']) {
+      const hc = fs.readFileSync(path.join(root, f), 'utf8').split('\n').filter(l => l.includes('/api/health'));
+      expect(hc.length).toBeGreaterThan(0);
+      hc.forEach(l => {
+        expect(l).toContain('http://127.0.0.1:3002/api/health');
+        expect(l).not.toContain('localhost');
+      });
+    }
+  });
 });
