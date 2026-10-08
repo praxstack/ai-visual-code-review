@@ -30,18 +30,32 @@ class GitService {
         return reject(new Error(`Invalid git command type: ${commandType}`));
       }
 
-      // Sanitize and validate arguments
-      const sanitizedArgs = args.filter(arg => {
-        if (typeof arg !== 'string') return false;
-        // Prevent command injection patterns
+      // execFile passes argv directly (no shell), so shell metacharacters are inert.
+      // Everything after a literal "--" is a pathspec and must be passed verbatim;
+      // only options before "--" are restricted.
+      const sepIndex = args.indexOf('--');
+      const optionArgs = sepIndex === -1 ? args : args.slice(0, sepIndex);
+      const pathArgs = sepIndex === -1 ? [] : args.slice(sepIndex + 1);
+
+      if (![...optionArgs, ...pathArgs].every(arg => typeof arg === 'string' && !arg.includes('\0'))) {
+        return reject(new Error('Invalid git argument'));
+      }
+      // A leading ":" introduces pathspec magic (":/", ":(exclude)x", ":!x", ...).
+      // Literal mode below already disables it; reject explicitly as well.
+      if (pathArgs.some(GitService.isMagicPathspec)) {
+        return reject(new Error('Magic pathspecs are not allowed'));
+      }
+      const sanitizedOptions = optionArgs.filter(arg => {
         if (/[;&|`$(){}[\]\\]/.test(arg)) return false;
-        // Prevent path traversal (allow relative paths within repo)
         if (arg.includes('..') && !arg.startsWith('./')) return false;
         return true;
       });
+      const sanitizedArgs = sepIndex === -1 ? sanitizedOptions : [...sanitizedOptions, '--', ...pathArgs];
 
       const gitCommand = baseCommand[0];
-      const gitArgs = [...baseCommand.slice(1), ...sanitizedArgs];
+      // --literal-pathspecs (a global option, so it precedes the subcommand) makes git
+      // match each path exactly: no glob ("[id]", "*", "?") and no ":" magic.
+      const gitArgs = ['--literal-pathspecs', ...baseCommand.slice(1), ...sanitizedArgs];
       const commandDisplay = [gitCommand, ...gitArgs].join(' ');
 
       execFile(gitCommand, gitArgs, {
@@ -58,6 +72,15 @@ class GitService {
         }
       });
     });
+  }
+
+  /**
+   * True if a path would be parsed by git as magic pathspec syntax (leading ":").
+   * @param {string} p
+   * @returns {boolean}
+   */
+  static isMagicPathspec(p) {
+    return typeof p === 'string' && p.startsWith(':');
   }
 
   /**

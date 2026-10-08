@@ -3,6 +3,7 @@
 const { spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { resolveHost, browseUrl } = require('../services/serverUrl');
 
 const PORT = process.env.PORT || 3002;
 
@@ -107,7 +108,7 @@ function startServer(port = PORT, openBrowser = false) {
   // Open browser if requested
   if (openBrowser) {
     setTimeout(() => {
-      const url = `http://localhost:${port}`;
+      const url = browseUrl(resolveHost(process.env), port);
       console.log(`\n🌐 Opening browser: ${url}`);
 
       const start = (process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open');
