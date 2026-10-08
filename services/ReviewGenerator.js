@@ -52,7 +52,7 @@ class ReviewGenerator {
         const reviewFileName = `review-${safeName}.md`;
         const reviewFilePath = path.join(reviewPath, reviewFileName);
 
-        const content = await this.generateFileContent(file, comments[file], lineComments);
+        const content = await this.generateFileContent(file, this.getFileComment(comments, file), lineComments);
 
         await fs.promises.writeFile(reviewFilePath, content, 'utf8');
         return { success: true, file, reviewFileName };
@@ -173,8 +173,9 @@ class ReviewGenerator {
           fileContent += fileTypeMap[ext] || '**Type:** Source File 📄\n\n';
         }
 
-        if (comments && comments[file]) {
-          fileContent += `## 💭 Review Comment\n\n${comments[file]}\n\n`;
+        const fileComment = this.getFileComment(comments, file);
+        if (fileComment) {
+          fileContent += `## 💭 Review Comment\n\n${fileComment}\n\n`;
         }
         const fileLineComments = this.getLineCommentsForFile(file, lineComments);
         if (fileLineComments.length > 0) {
@@ -234,6 +235,17 @@ class ReviewGenerator {
       filesProcessed: processedCount,
       errors
     };
+  }
+
+  /**
+   * The reviewer's comment for `file`, or undefined. Only own keys count: a file named
+   * `constructor` or `toString` must not pick up an inherited Object.prototype member.
+   * @param {Object} comments - file -> comment
+   * @param {string} file
+   * @returns {string|undefined}
+   */
+  static getFileComment(comments, file) {
+    return comments && Object.prototype.hasOwnProperty.call(comments, file) ? comments[file] : undefined;
   }
 
   /**

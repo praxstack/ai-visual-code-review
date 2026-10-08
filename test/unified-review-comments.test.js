@@ -75,6 +75,28 @@ describe('unified review includes reviewer comments [AVCR-002]', () => {
     expect(fs.readFileSync(path.join(dir, 'AI_REVIEW.md'), 'utf8')).not.toContain('EXCLUDED-SECRET');
   });
 
+  test('files named like Object.prototype members get no inherited comment [codex P2]', async () => {
+    const protoFiles = ['constructor', 'toString', 'hasOwnProperty'];
+    for (const f of protoFiles) fs.writeFileSync(path.join(dir, f), `// ${f}\n`);
+    execFileSync('git', ['add', '--', ...protoFiles], { cwd: dir });
+    try {
+      await ReviewGenerator.generateUnifiedReview({ includedFiles: protoFiles, comments: {} });
+      const out = fs.readFileSync(path.join(dir, 'AI_REVIEW.md'), 'utf8');
+      expect(out).not.toContain('Review Comment');
+      expect(out).not.toContain('[native code]');
+      const splitDir = path.join(dir, 'split-out');
+      await ReviewGenerator.generateSplitReviews({ includedFiles: protoFiles, comments: {}, outputDir: splitDir });
+      for (const name of fs.readdirSync(splitDir)) {
+        expect(fs.readFileSync(path.join(splitDir, name), 'utf8')).not.toContain('Review Comment');
+      }
+      fs.rmSync(splitDir, { recursive: true, force: true });
+      expect(ReviewGenerator.getFileComment({ constructor: 'OWN' }, 'constructor')).toBe('OWN');
+    } finally {
+      execFileSync('git', ['rm', '-q', '--cached', '--', ...protoFiles], { cwd: dir });
+      for (const f of protoFiles) fs.rmSync(path.join(dir, f));
+    }
+  });
+
   test('client and server agree on the lineId prefix', () => {
     for (const f of files.concat(['app/[id]/page.tsx', 'x$y{z}.txt', 'naïve.js'])) {
       expect(ReviewGenerator.lineIdPrefix(f)).toBe(clientLineIdPrefix(f));
