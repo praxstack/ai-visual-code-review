@@ -4,8 +4,13 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const ReviewGenerator = require('../services/ReviewGenerator');
 
-// Same format the web client uses (public/index.html renderDiff).
-const lineIdFor = (file, chunk, line) => `${file.replace(/[^a-zA-Z0-9]/g, '_')}_${chunk}_${line}`;
+// Use the web client's own lineIdPrefix() from public/index.html, so the test breaks if
+// client and server encodings drift apart.
+const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+const clientFn = html.match(/function lineIdPrefix\(filename\) \{([\s\S]*?)\n\s*\}/);
+// eslint-disable-next-line no-new-func
+const clientLineIdPrefix = new Function('filename', clientFn[1]);
+const lineIdFor = (file, chunk, line) => `${clientLineIdPrefix(file)}_${chunk}_${line}`;
 
 // Export text from the first mention of `file` up to the first mention of `nextFile`.
 function sectionFor(out, file, nextFile) {
@@ -17,7 +22,8 @@ function sectionFor(out, file, nextFile) {
 describe('unified review includes reviewer comments [AVCR-002]', () => {
   const origCwd = process.cwd();
   let dir;
-  const files = ['a.js', 'data.js', 'index.js', 'src/index.js'];
+  // Pairs that collided under the old lossy encoding: a-b.js/a_b.js, src/x.js/src_x.js.
+  const files = ['a.js', 'data.js', 'index.js', 'src/index.js', 'a-b.js', 'a_b.js', 'src/x.js', 'src_x.js'];
   beforeAll(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'avcr-ur-'));
     for (const f of files) {
@@ -59,6 +65,21 @@ describe('unified review includes reviewer comments [AVCR-002]', () => {
         expect(section).not.toContain(`LINE-${other}\n`);
       }
     });
+  });
+
+  test('a comment on an excluded file does not leak into a same-looking included file [codex P2]', async () => {
+    await ReviewGenerator.generateUnifiedReview({
+      includedFiles: ['a_b.js'], excludedFiles: ['a-b.js'],
+      lineComments: { [lineIdFor('a-b.js', 0, 1)]: 'EXCLUDED-SECRET' }
+    });
+    expect(fs.readFileSync(path.join(dir, 'AI_REVIEW.md'), 'utf8')).not.toContain('EXCLUDED-SECRET');
+  });
+
+  test('client and server agree on the lineId prefix', () => {
+    for (const f of files.concat(['app/[id]/page.tsx', 'x$y{z}.txt', 'naïve.js'])) {
+      expect(ReviewGenerator.lineIdPrefix(f)).toBe(clientLineIdPrefix(f));
+      expect(ReviewGenerator.lineIdPrefix(f)).toMatch(/^[a-zA-Z0-9_]+$/);
+    }
   });
 
   test('per-file export puts each line comment under its own file only [review: MINOR-1]', async () => {

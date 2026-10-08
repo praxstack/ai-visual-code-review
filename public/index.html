@@ -1435,6 +1435,12 @@
             if (lineContainer) lineContainer.classList.remove('has-line-comment');
         }
 
+        // Must match ReviewGenerator.lineIdPrefix on the server: each non-alphanumeric
+        // character becomes _<hex code>_, so distinct paths never share a lineId prefix.
+        function lineIdPrefix(filename) {
+            return filename.replace(/[^a-zA-Z0-9]/g, c => '_' + c.charCodeAt(0).toString(16) + '_');
+        }
+
         function renderDiff(container, diff, filename, parsedDiff) {
             if (!diff.trim() || !parsedDiff?.chunks?.length) {
                 container.innerHTML = `
@@ -1453,7 +1459,7 @@
                 html += `<div class="diff-header">${escapeHtml(chunk.header)}</div>`;
 
                 chunk.lines.forEach((line, lineIndex) => {
-                    const lineId = `${filename.replace(/[^a-zA-Z0-9]/g, '_')}_${chunkIndex}_${lineIndex}`;
+                    const lineId = `${lineIdPrefix(filename)}_${chunkIndex}_${lineIndex}`;
                     const oldNum = line.oldLineNum;
                     const newNum = line.newLineNum;
 

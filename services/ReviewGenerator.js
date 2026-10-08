@@ -237,16 +237,26 @@ class ReviewGenerator {
   }
 
   /**
+   * File part of a client lineId. Must match lineIdPrefix() in public/index.html.
+   * Each non-alphanumeric character becomes `_<hex code>_`, so the mapping is injective:
+   * `a-b.js` and `a_b.js`, or `src/x.js` and `src_x.js`, get different prefixes.
+   * @param {string} file
+   * @returns {string}
+   */
+  static lineIdPrefix(file) {
+    return file.replace(/[^a-zA-Z0-9]/g, c => `_${c.charCodeAt(0).toString(16)}_`);
+  }
+
+  /**
    * Line comments that belong to exactly this file. The client builds lineIds as
-   * `${file.replace(/[^a-zA-Z0-9]/g, '_')}_${chunkIndex}_${lineIndex}`, so match the whole
-   * id: a substring test would also give `data.js`'s comments to `a.js`.
+   * `${lineIdPrefix(file)}_${chunkIndex}_${lineIndex}`, so match the whole id: a substring
+   * test would also give `data.js`'s comments to `a.js`.
    * @param {string} file
    * @param {Object} lineComments - lineId -> comment
    * @returns {Array<[string, string]>}
    */
   static getLineCommentsForFile(file, lineComments) {
-    const prefix = file.replace(/[^a-zA-Z0-9]/g, '_');
-    const idPattern = new RegExp(`^${prefix}_\\d+_\\d+$`);
+    const idPattern = new RegExp(`^${this.lineIdPrefix(file)}_\\d+_\\d+$`);
     return Object.entries(lineComments || {}).filter(([lineId]) => idPattern.test(lineId));
   }
 
