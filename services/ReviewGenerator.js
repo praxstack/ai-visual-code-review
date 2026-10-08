@@ -95,9 +95,11 @@ class ReviewGenerator {
    * @param {Array} options.includedFiles - List of files to process
    * @param {Array} options.excludedFiles - List of excluded files
    * @param {Array} options.largeFiles - List of skipped large files
+   * @param {Object} options.comments - File-level comments keyed by file
+   * @param {Object} options.lineComments - Line-level comments
    * @returns {Promise<Object>} Result stats and content
    */
-  static async generateUnifiedReview({ includedFiles, excludedFiles = [], largeFiles = [] }) {
+  static async generateUnifiedReview({ includedFiles, excludedFiles = [], largeFiles = [], comments = {}, lineComments = {} }) {
     const timestamp = new Date().toLocaleString();
     let content = `# 🔍 Code Review - ${timestamp}\n\n`;
     content += '**Project:** AI Visual Code Review\n';
@@ -169,6 +171,19 @@ class ReviewGenerator {
             '.toml': '**Type:** TOML Configuration 📋\n\n'
           };
           fileContent += fileTypeMap[ext] || '**Type:** Source File 📄\n\n';
+        }
+
+        if (comments && comments[file]) {
+          fileContent += `## 💭 Review Comment\n\n${comments[file]}\n\n`;
+        }
+        const fileLineComments = Object.entries(lineComments || {})
+          .filter(([lineId]) => lineId.includes(file.replace(/[^a-zA-Z0-9]/g, '_')));
+        if (fileLineComments.length > 0) {
+          fileContent += '## 🔍 Line Comments\n\n';
+          fileLineComments.forEach(([lineId, comment]) => {
+            fileContent += `- **${lineId}:** ${comment}\n`;
+          });
+          fileContent += '\n';
         }
 
         // Get diff

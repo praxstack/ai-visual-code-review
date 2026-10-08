@@ -619,6 +619,8 @@ app.post('/api/export-for-ai', exportRateLimit, handleAsyncRoute(async (req, res
     const result = await ReviewGenerator.generateUnifiedReview({
       includedFiles,
       excludedFiles,
+      comments,
+      lineComments,
       // Pass other options if needed by generateUnifiedReview,
       // though currently it handles content generation primarily.
     });
