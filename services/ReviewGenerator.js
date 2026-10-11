@@ -52,7 +52,7 @@ class ReviewGenerator {
         const reviewFileName = `review-${safeName}.md`;
         const reviewFilePath = path.join(reviewPath, reviewFileName);
 
-        const content = await this.generateFileContent(file, comments[file], lineComments);
+        const content = await this.generateFileContent(file, this.getFileComment(comments, file), lineComments);
 
         await fs.promises.writeFile(reviewFilePath, content, 'utf8');
         return { success: true, file, reviewFileName };
@@ -95,9 +95,11 @@ class ReviewGenerator {
    * @param {Array} options.includedFiles - List of files to process
    * @param {Array} options.excludedFiles - List of excluded files
    * @param {Array} options.largeFiles - List of skipped large files
+   * @param {Object} options.comments - File-level comments keyed by file
+   * @param {Object} options.lineComments - Line-level comments
    * @returns {Promise<Object>} Result stats and content
    */
-  static async generateUnifiedReview({ includedFiles, excludedFiles = [], largeFiles = [] }) {
+  static async generateUnifiedReview({ includedFiles, excludedFiles = [], largeFiles = [], comments = {}, lineComments = {} }) {
     const timestamp = new Date().toLocaleString();
     let content = `# 🔍 Code Review - ${timestamp}\n\n`;
     content += '**Project:** AI Visual Code Review\n';
@@ -171,6 +173,19 @@ class ReviewGenerator {
           fileContent += fileTypeMap[ext] || '**Type:** Source File 📄\n\n';
         }
 
+        const fileComment = this.getFileComment(comments, file);
+        if (fileComment) {
+          fileContent += `## 💭 Review Comment\n\n${fileComment}\n\n`;
+        }
+        const fileLineComments = this.getLineCommentsForFile(file, lineComments);
+        if (fileLineComments.length > 0) {
+          fileContent += '## 🔍 Line Comments\n\n';
+          fileLineComments.forEach(([lineId, comment]) => {
+            fileContent += `- **${lineId}:** ${comment}\n`;
+          });
+          fileContent += '\n';
+        }
+
         // Get diff
         try {
           const diff = await GitService.getDiffForFile(file);
@@ -223,6 +238,41 @@ class ReviewGenerator {
   }
 
   /**
+   * The reviewer's comment for `file`, or undefined. Only own keys count: a file named
+   * `constructor` or `toString` must not pick up an inherited Object.prototype member.
+   * @param {Object} comments - file -> comment
+   * @param {string} file
+   * @returns {string|undefined}
+   */
+  static getFileComment(comments, file) {
+    return comments && Object.prototype.hasOwnProperty.call(comments, file) ? comments[file] : undefined;
+  }
+
+  /**
+   * File part of a client lineId. Must match lineIdPrefix() in public/index.html.
+   * Each non-alphanumeric character becomes `_<hex code>_`, so the mapping is injective:
+   * `a-b.js` and `a_b.js`, or `src/x.js` and `src_x.js`, get different prefixes.
+   * @param {string} file
+   * @returns {string}
+   */
+  static lineIdPrefix(file) {
+    return file.replace(/[^a-zA-Z0-9]/g, c => `_${c.charCodeAt(0).toString(16)}_`);
+  }
+
+  /**
+   * Line comments that belong to exactly this file. The client builds lineIds as
+   * `${lineIdPrefix(file)}_${chunkIndex}_${lineIndex}`, so match the whole id: a substring
+   * test would also give `data.js`'s comments to `a.js`.
+   * @param {string} file
+   * @param {Object} lineComments - lineId -> comment
+   * @returns {Array<[string, string]>}
+   */
+  static getLineCommentsForFile(file, lineComments) {
+    const idPattern = new RegExp(`^${this.lineIdPrefix(file)}_\\d+_\\d+$`);
+    return Object.entries(lineComments || {}).filter(([lineId]) => idPattern.test(lineId));
+  }
+
+  /**
    * Generate content for a single file review
    */
   static async generateFileContent(file, fileComment, lineComments) {
@@ -257,8 +307,7 @@ class ReviewGenerator {
     }
 
     // Line Comments
-    const fileLineComments = Object.entries(lineComments || {})
-      .filter(([lineId]) => lineId.includes(file.replace(/[^a-zA-Z0-9]/g, '_')));
+    const fileLineComments = this.getLineCommentsForFile(file, lineComments);
 
     if (fileLineComments.length > 0) {
       content += '## 🔍 Line Comments\n\n';

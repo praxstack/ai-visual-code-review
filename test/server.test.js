@@ -71,7 +71,10 @@ describe('AI Visual Code Review Server', () => {
         '/etc/passwd',
         'file<script>alert(1)</script>',
         'file|rm -rf /',
-        'file;cat /etc/passwd'
+        'file;cat /etc/passwd',
+        ':/',
+        ':!README.md',
+        ':(exclude)README.md'
       ];
 
       for (const file of maliciousFiles) {
